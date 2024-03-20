@@ -1,0 +1,46 @@
+[project]
+name = "BasisConvolution"
+version = "0.0.1"
+authors = [
+  { name="Rene Winchenbach", email="contact@fluids.dev" },
+]
+maintainers = [
+  { name="Rene Winchenbach", email="contact@fluids.dev" },
+]
+description = "Graph Neural Network Library for continuous convolutions using separable basis functions in pyTorch."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["sph","machineLearning","pytorch", "GNN"]
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 3 - Alpha",
+
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  "torch", "numpy", "ninja", "tqdm", "seaborn", "pandas", "matplotlib", "tomli", "msgpack", "msgpack-numpy", "portalocker", "h5py", "zstandard", "scipy", "scikit-learn", "scikit-image", "numba"
+]
+
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/wi-re/SFBC"
+Issues = "https://github.com/wi-re/SFBC/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"] # <-- this changed
+
+[tool.setuptools.package-data]
+"*" = ["*.*"] # <-- this changed
