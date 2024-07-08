@@ -44,7 +44,7 @@ def trainModel(particleData, testData, settings, dataSet, trainingFiles, offset,
     windowFn = getWindowFunction(window, norm = windowNorm) if window is not None else None
     model = BasisNetwork(fluidFeatures = fluidFeatures, 
                    layers = layers, 
-                   denseLayer = True, activation = 'ReLU', coordinateMapping = 'cartesian', 
+                   denseLayer = True, activation = 'relu', coordinateMapping = 'cartesian', 
                    dims = [n], windowFn = windowFn, rbfs = [basis], batchSize = 32, ignoreCenter = True, normalized = False).to(device)   
     lr = initialLR
     with torch.no_grad():
