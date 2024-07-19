@@ -496,6 +496,7 @@ def initModel(args, inFile):
 
     optimizer.zero_grad()
     model = model.train()
+    
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma = gamma)
     
     hyperParameterDict['parameterCount'] = count_parameters(model)

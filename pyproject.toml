@@ -1,6 +1,6 @@
 [project]
 name = "BasisConvolution"
-version = "0.0.1"
+version = "0.1.2"
 authors = [
   { name="Rene Winchenbach", email="contact@fluids.dev" },
 ]
@@ -16,7 +16,7 @@ classifiers = [
   #   3 - Alpha
   #   4 - Beta
   #   5 - Production/Stable
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
 
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
@@ -32,8 +32,8 @@ dependencies = [
 license = {file = "LICENSE"}
 
 [project.urls]
-Repository = "https://github.com/wi-re/SFBC"
-Issues = "https://github.com/wi-re/SFBC/issues"
+Repository = "https://github.com/tum-pbs/SFBC"
+Issues = "https://github.com/tum-pbs/SFBC/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
