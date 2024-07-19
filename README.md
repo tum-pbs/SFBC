@@ -102,7 +102,7 @@ For this call fluidFeatures are per-vertex features for the primary point cloud 
 
 As an example for training, see notebooks/exampleTraining. This notebook contains a simple training script that learns the SPH density kernel function for any of the four included datasets in a small ablation study. Here's an example result of the training for test case II with 5 different basis functions (Fourier, Fourier even terms only, Fourier odd terms only, Linear and Chebyshev) with 3 different basis term counts (2,4,8):
 
-![alt text](figures/train.png)
+![alt text](https://github.com/tum-pbs/SFBC/raw/main/figures/train.png)
 
 You can also find an example of this ablation study on [Google Colab](https://colab.research.google.com/drive/1p0NChJwexFaNUtRKvEEtkDHf9AsONVCI?usp=sharing)
 
@@ -122,7 +122,7 @@ IV | 3D Toy | 1.2 GByte | [https://huggingface.co/datasets/Wi-Re/SFBC_dataset_IV
 
 This test case was a pseudo-compressible 1D SPH simulation with random initial conditions. The dataset comprises 36 files with 2048 timesteps and 2048 particles each. Example:
 
-![alt text](figures/image.png)
+![alt text](https://github.com/tum-pbs/SFBC/raw/main/figures/image.png)
 
 You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_dataset_I) (size approximately 7.9 GByte), the dataset is also a submodule in this repo under datasets/SFBC_dataset_I.
 
@@ -130,7 +130,7 @@ You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_datas
 
 This test case was a weakly-compressible 2D SPH simulation with random initial conditions and enclosed by a rigid boundary. The dataset comprises 36 simulations for training and 16 for testing each with 4096 timesteps and 4096 particles. Example:
 
-![alt text](figures/image-1.png)
+![alt text](https://github.com/tum-pbs/SFBC/raw/main/figures/image-1.png)
 
 You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_dataset_II) (size approximately 45 GByte), the dataset is also a submodule in this repo under datasets/SFBC_dataset_II.
 
@@ -138,7 +138,7 @@ You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_datas
 
 This test case was an incompressible 2D SPH simulation where to randomly sized blobs of liquid collide in free-space. The dataset comprises 64 simulations for training and 4 for testing each with 128 timesteps and 4096 particles. Example:
 
-![alt text](figures/image-2.png)
+![alt text](https://github.com/tum-pbs/SFBC/raw/main/figures/image-2.png)
 
 You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_dataset_III) (size approximately 2.1 GByte), the dataset is also a submodule in this repo under datasets/SFBC_dataset_III.
 
@@ -146,7 +146,7 @@ You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_datas
 
 The last test case is a toy-problem to evaluate SPH kernel learning in a 3D setting. For this setup we sampled 4096 particles in a $[-1,1]^3$ domain with random (including negative) massses and additional jitter on the particle possitions. The test set contains a setup with no jitter (1024 seeds), low jitter (1024 seeds), medium jitter (1 seed) and high jitter (1 seed). Example (low jitter): 
 
-![alt text](figures/image-3.png)
+![alt text](https://github.com/tum-pbs/SFBC/raw/main/figures/image-3.png)
 
 You can find the dataset [here](https://huggingface.co/datasets/Wi-Re/SFBC_dataset_IV) (size approximately 1.2 GByte), the dataset is also a submodule in this repo under datasets/SFBC_dataset_IV.
 
