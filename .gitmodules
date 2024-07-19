@@ -1,0 +1,12 @@
+[submodule "datasets/SFBC_dataset_II"]
+	path = datasets/SFBC_dataset_II
+	url = https://huggingface.co/datasets/Wi-Re/SFBC_dataset_II
+[submodule "datasets/SFBC_dataset_I"]
+	path = datasets/SFBC_dataset_I
+	url = https://huggingface.co/datasets/Wi-Re/SFBC_dataset_I
+[submodule "datasets/SFBC_dataset_III"]
+	path = datasets/SFBC_dataset_III
+	url = https://huggingface.co/datasets/Wi-Re/SFBC_dataset_III
+[submodule "datasets/SFBC_dataset_IV"]
+	path = datasets/SFBC_dataset_IV
+	url = https://huggingface.co/datasets/Wi-Re/SFBC_dataset_IV
