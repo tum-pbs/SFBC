@@ -163,5 +163,7 @@ pip install tqdm seaborn pandas matplotlib numpy tomli msgpack msgpack-numpy por
 pip install scipy scikit-image scikit-learn
 ```
 
+If you would like to use a faster and less memory intensive neighbor search to build your networks, especially for larger simulations, consider using our [torchCompactRadius](https://pypi.org/project/torchCompactRadius/) package (`pip install torchCompactRadius`) which uses a C++/Cuda implementation of a compact hash map based neigbor search. Note that this module performs a just in time compilation on its first use for new configurations and may take some time (it will time out your colab instance as a free user).
+
 --- 
 This work was supported by the __DFG Individual Research Grant TH 2034/1-2__. 
