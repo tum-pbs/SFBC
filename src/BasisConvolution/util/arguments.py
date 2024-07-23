@@ -69,5 +69,6 @@ parser.add_argument('--dxdtLossScaling', type = float, default = argparse.SUPPRE
 parser.add_argument('--shiftLoss', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Shifting the loop')
 parser.add_argument('--skipLastShift', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Shifting the loop')
 parser.add_argument('--scaleShiftLoss', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Shifting the loop')
+parser.add_argument('--integrationScheme', type = str, default = argparse.SUPPRESS, help='Integration scheme')
 
 parser.add_argument('--exportPath', type = str, default = argparse.SUPPRESS, help='Export path')

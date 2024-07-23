@@ -66,7 +66,8 @@ def defaultHyperParameters():
         'inputEncoder': None,
         'outputDecoder': None,
         'edgeMLP': None,
-        'vertexMLP': None
+        'vertexMLP': None,
+        'integrationScheme': 'semiImplicitEuler',
     }
     return hyperParameterDict
 
@@ -135,6 +136,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['scaleShiftLoss'] = args.scaleShiftLoss if hasattr(args, 'scaleShiftLoss') else hyperParameterDict['scaleShiftLoss']
     hyperParameterDict['activation'] = args.activation if hasattr(args, 'activation') else hyperParameterDict['activation']
     hyperParameterDict['exportPath'] = args.exportPath if hasattr(args, 'exportPath') else hyperParameterDict['exportPath']
+    hyperParameterDict['integrationScheme'] = args.integrationScheme if hasattr(args, 'integrationScheme') else hyperParameterDict['integrationScheme']
 
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
     # hyperParameterDict['dtype'] = torch.
@@ -162,7 +164,7 @@ def parseArguments(args, hyperParameterDict):
                 'gain': 1,
                 'norm': True,
                 'layout': [32],
-                'output': 1,
+                # 'output': 1,
                 'preNorm': False,
                 'postNorm': True,
                 'noLinear': True,
@@ -263,6 +265,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'shifting', 'networkType', hyperParameterDict, 'networkType')
         parseEntry(cfg, 'shifting', 'shiftLoss', hyperParameterDict, 'shiftLoss')
         parseEntry(cfg, 'shifting', 'scaleShiftLoss', hyperParameterDict, 'scaleShiftLoss')
+        parseEntry(cfg, 'shifting', 'integrationScheme', hyperParameterDict, 'integrationScheme')
         parseEntry(cfg, 'dataset', 'dataIndex', hyperParameterDict, 'dataIndex')
         parseEntry(cfg, 'shifting', 'skipLastShift', hyperParameterDict, 'skipLastShift')
         parseEntry(cfg, 'loss', 'dxdtLossScaling', hyperParameterDict, 'dxdtLossScaling')
@@ -428,7 +431,7 @@ def toPandaDict(hyperParameterDict):
         'skipLastShift': hyperParameterDict['skipLastShift'],
         'dxdtLossScaling': hyperParameterDict['dxdtLossScaling'],
         'scaleShiftLoss': hyperParameterDict['scaleShiftLoss'] if 'scaleShiftLoss' in hyperParameterDict else False,
-
+        'integrationScheme': hyperParameterDict['integrationScheme'],
         'inputEncoder': True if hyperParameterDict['inputEncoder'] is not None else False,
         'outputDecoder': True if hyperParameterDict['outputDecoder'] is not None else False,
 

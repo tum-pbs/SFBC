@@ -522,12 +522,13 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
     iPriorKey = int(key) - hyperParameterDict['frameDistance']
 
     priorState = None
-    if buildPriorState:
+    if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
         if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
             priorState = copy.deepcopy(state)
         else:
             priorState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
-            
+        
+
     nextStates = []
     if buildNextState:
         if unrollLength == 0 and hyperParameterDict['frameDistance'] == 0:
@@ -542,6 +543,10 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
                 unrollKey = int(key) + hyperParameterDict['frameDistance'] * (u + 1)
                 nextState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % unrollKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
                 nextStates.append(nextState)            
+
+    # if hyperParameterDict['adjustForFrameDistance']:
+
+
 
 
 
