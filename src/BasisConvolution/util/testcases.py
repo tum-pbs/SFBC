@@ -420,6 +420,8 @@ def parseSPHConfig(inFile, device, dtype):
     if hasDiffSPH:
         parseDefaultParameters(config)
         parseModuleParameters(config)
+    else:
+        raise ModuleNotFoundError('diffSPH is not installed, cannot parse SPH config')
     
     return config
 
