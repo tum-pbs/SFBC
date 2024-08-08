@@ -82,7 +82,6 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8):
 
     # config['neighborhood']['verletScale'] = 1.0
     # config['neighborhood']['scheme'] = 'compact'
-
     searchNeighbors(augmentedStates[0], config, computeKernels = True)
 
     currentState = augmentedStates[0]
