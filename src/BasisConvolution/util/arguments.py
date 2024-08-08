@@ -6,7 +6,7 @@ parser.add_argument('-cmap','--coordinateMapping', type=str, default=argparse.SU
 parser.add_argument('-w','--windowFunction', type=str, default=argparse.SUPPRESS, help='Window function [default = poly6]')
 parser.add_argument('-c','--cutoff', type=int, default=argparse.SUPPRESS, help='Cutoff distance [default = 1800]')
 parser.add_argument('-b','--batch_size', type=int, default=argparse.SUPPRESS, help='Batch size [default = 1]')
-parser.add_argument('-o','--output', type = str, default = '../../trainingData_TGV/randomFlows/', help='Output directory [default = ""]')
+parser.add_argument('-o','--output', type = str, default = argparse.SUPPRESS, help='Output directory [default = ""]')
 parser.add_argument('--cutlassBatchSize', type=int, default=argparse.SUPPRESS, help='Cutlass batch size [default = 512]')
 parser.add_argument('--lr', type=float, default=argparse.SUPPRESS, help='Learning rate [default = 0.01]')
 parser.add_argument('--finalLR', type=float, default=argparse.SUPPRESS, help='Final learning rate [default = 0.0001]')

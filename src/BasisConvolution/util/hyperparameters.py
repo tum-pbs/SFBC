@@ -15,7 +15,6 @@ def defaultHyperParameters():
         'initialLR': 0.01,
         'finalLR': 0.0001,
         'lrStep': 10,
-        'maxRollOut': 10,
         'epochs': 25,
         'frameDistance': 4,
         'iterations': 1000,
@@ -36,7 +35,7 @@ def defaultHyperParameters():
         'weight_decay': 0,
         'input': '',
         'input': './',
-        'output': '../../trainingData_TGV/randomFlows/',
+        'output': 'training',
         'outputBias': False,
         'loss': 'mse',
         'batchSize': 1,
@@ -82,7 +81,6 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['lrStep'] = args.lrStep if hasattr(args, 'lrStep') else hyperParameterDict['lrStep']
     
     
-    hyperParameterDict['maxRollOut'] = args.maxUnroll if hasattr(args, 'maxUnroll') else hyperParameterDict['maxUnroll']
     hyperParameterDict['epochs'] = args.epochs if hasattr(args, 'epochs') else hyperParameterDict['epochs']
     hyperParameterDict['frameDistance'] = args.frameDistance if hasattr(args, 'frameDistance') else hyperParameterDict['frameDistance']
     hyperParameterDict['iterations'] = args.iterations if hasattr(args, 'iterations') else hyperParameterDict['iterations']
@@ -376,7 +374,7 @@ def toPandaDict(hyperParameterDict):
         'layers': hyperParameterDict['layers'],
         'seed': hyperParameterDict['seed'],
 
-        'windowFunction': hyperParameterDict['windowFunction'],
+        'windowFunction': hyperParameterDict['windowFunction'] if hyperParameterDict['windowFunction'] is not None else 'None',
         'coordinateMapping' : hyperParameterDict['coordinateMapping'],
 
         'trainingFiles': hyperParameterDict['trainingFiles'],
@@ -415,7 +413,6 @@ def toPandaDict(hyperParameterDict):
 
         'minUnroll': hyperParameterDict['minUnroll'],
         'maxUnroll': hyperParameterDict['maxUnroll'],
-        'maxRollOut': hyperParameterDict['maxRollOut'],
 
         'cutlassBatchSize': hyperParameterDict['cutlassBatchSize'],
         'li' : hyperParameterDict['liLoss'] if 'liLoss' in hyperParameterDict else None,
@@ -588,9 +585,9 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     hyperParameterDict['layers'] = [int(s) for s in hyperParameterDict['widths']]
 
 
-    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:14s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"]:4s}, {hyperParameterDict["fluidFeatures"]} -> {hyperParameterDict["groundTruth"]}'
+    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:14s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} -> {hyperParameterDict["groundTruth"]}'
 
-    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:4s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"]:4s}'
+    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:4s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}'
 
     hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
 

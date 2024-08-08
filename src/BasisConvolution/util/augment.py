@@ -107,7 +107,7 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8):
     # print('gt')
     cState = currentState
     for state in trajectoryStates:
-        state['fluid']['target'] = getFeatures(hyperParameterDict['groundTruth'].split(' '), state, cState, 'fluid', config, state['time'] - cState['time'], verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None,)
+        state['fluid']['target'] = getFeatures(hyperParameterDict['groundTruth'].split(' '), state, cState, 'fluid', config, state['time'] - cState['time'] if state['time'] != cState['time'] else 1, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None,)
         cState = state
 
     return config, attributes, augmentedStates[0], augmentedStates[1] if priorState is not None else None, augmentedStates[2:] if priorState is not None else augmentedStates[1:]
