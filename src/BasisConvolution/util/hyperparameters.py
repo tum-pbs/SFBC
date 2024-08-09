@@ -585,9 +585,9 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     hyperParameterDict['layers'] = [int(s) for s in hyperParameterDict['widths']]
 
 
-    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:14s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} -> {hyperParameterDict["groundTruth"]}'
+    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
 
-    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:4s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}'
+    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}'
 
     hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
 
