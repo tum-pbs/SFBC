@@ -592,10 +592,11 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     hyperParameterDict['widths'] = hyperParameterDict['arch'].strip().split(' ')
     hyperParameterDict['layers'] = [int(s) for s in hyperParameterDict['widths']]
 
+    hyperParameterDict['mlpLabel'] = f'[{"V" if hyperParameterDict["vertexMLP"] is not None else " "}{"E" if hyperParameterDict["edgeMLP"] is not None else " "}{"I" if hyperParameterDict["inputEncoder"] is not None else " "}{"O" if hyperParameterDict["outputDecoder"] is not None else " "}]'
 
-    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:14s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} -> {hyperParameterDict["groundTruth"]}'
+    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]} {hyperParameterDict["mlpLabel"]}'
 
-    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s} [{hyperParameterDict["arch"]:4s}] -> [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}'
+    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s} {hyperParameterDict["mlpLabel"]}'
 
     hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
 

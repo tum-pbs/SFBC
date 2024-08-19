@@ -395,7 +395,7 @@ class BasisNetwork(torch.nn.Module):
             # print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
             fluidFeatures = fluidFeatures.view(-1, *fluidFeatures.shape[2:])
             if verbose:
-                print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
+                print(f'(post encoder) fluidFeatures: {fluidFeatures.shape} [min: {torch.min(fluidFeatures)}, max: {torch.max(fluidFeatures)}, mean: {torch.mean(fluidFeatures)}]')
         # print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
 
         self.ni = ni
@@ -418,6 +418,8 @@ class BasisNetwork(torch.nn.Module):
         if verbose:
             print(f'Running Convolution (FTF) {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
         fluidConvolution = (self.convs[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights))
+        if verbose:
+            print(f'Result: [min: {torch.min(fluidConvolution)}, max: {torch.max(fluidConvolution)}, mean: {torch.mean(fluidConvolution)}]')
 #         fluidConvolution = scatter_sum(baseArea * fluidFeatures[fluidEdgeIndex[1]] * kernelGradient(torch.abs(fluidEdgeLengths), torch.sign(fluidEdgeLengths), particleSupport), fluidEdgeIndex[0], dim = 0, dim_size = fluidFeatures.shape[0])
         
         if len(self.layers) == 1:
@@ -426,25 +428,35 @@ class BasisNetwork(torch.nn.Module):
                     print(f'Running Convolution (BTF) {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')
                 boundaryConvolution = (self.convs[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights))
                 fluidConvolution += boundaryConvolution
+                if verbose:
+                    print(f'Result: [min: {torch.min(boundaryConvolution)}, max: {torch.max(boundaryConvolution)}, mean: {torch.mean(boundaryConvolution)}]')
 
             if self.layerMLP:
+                if verbose:
+                    print(f'Running Linear {self.fcs[0].in_features} -> {self.fcs[0].out_features} features')
                 fluidConvolution = self.mlps[0](fluidConvolution)
+                if verbose:
+                    print(f'Result: [min: {torch.min(fluidConvolution)}, max: {torch.max(fluidConvolution)}, mean: {torch.mean(fluidConvolution)}]')
             if self.outputDecoder is not None:
                 if verbose:
                     print(f'(pre outputDecoder) fluidConvolution: {fluidConvolution.shape}')
                 fluidConvolution = self.outputDecoder(fluidConvolution.view(batches,-1, *fluidConvolution.shape[1:]))
                 fluidConvolution = fluidConvolution.view(-1, *fluidConvolution.shape[2:])
                 if verbose:
-                    print(f'(post outputDecoder) fluidConvolution: {fluidConvolution.shape}')
+                    print(f'(post outputDecoder) fluidConvolution: {fluidConvolution.shape} [min: {torch.min(fluidConvolution)}, max: {torch.max(fluidConvolution)}, mean: {torch.mean(fluidConvolution)}]')
             
             return fluidConvolution 
         if verbose:
             print(f'Running Linear {self.fcs[0].in_features} -> {self.fcs[0].out_features} features')
         linearOutput = (self.fcs[0](fluidFeatures))
+        if verbose:
+            print(f'Result [min: {torch.min(linearOutput)}, max: {torch.max(linearOutput)}, mean: {torch.mean(linearOutput)}]')
         if self.hasBoundaryLayers:
             if verbose:
                 print(f'Running Convolution {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')
             boundaryConvolution = (self.convs[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights))
+            if verbose:
+                print(f'Result [min: {torch.min(boundaryConvolution)}, max: {torch.max(boundaryConvolution)}, mean: {torch.mean(boundaryConvolution)}]')
             ans = torch.hstack((linearOutput, fluidConvolution, boundaryConvolution))
         else:
             ans = torch.hstack((linearOutput, fluidConvolution))
@@ -470,11 +482,15 @@ class BasisNetwork(torch.nn.Module):
                 print(f'Relu {ans.shape}')
             ansc = self.relu(ans)
             if verbose:
-                print(f'Running Convolution {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
+                print(f'Layer[{i}]:\tResult for layer {i-1} [min: {torch.min(ansc)}, max: {torch.max(ansc)}, mean: {torch.mean(ansc)}] | [min: {torch.min(ans)}, max: {torch.max(ans)}, mean: {torch.mean(ans)}]')
+                print(f'Layer[{i}]:\tRunning Convolution {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
             ansConv = self.convs[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
             if verbose:
-                print(f'Running Linear {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].in_features} -> {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].out_features} features') 
+                print(f'Layer[{i}]:\t\tResult [min: {torch.min(ansConv)}, max: {torch.max(ansConv)}, mean: {torch.mean(ansConv)}]')
+                print(f'Layer[{i}]:\tRunning Linear {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].in_features} -> {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].out_features} features') 
             ansDense = self.fcs[i - (1 if self.hasBoundaryLayers else 0)](ansc)
+            if verbose:
+                print(f'Layer[{i}]:\t\tResult [min: {torch.min(ansDense)}, max: {torch.max(ansDense)}, mean: {torch.mean(ansDense)}]')
             
             
             if self.features[i- (2 if self.hasBoundaryLayers else 1)] == self.features[i-(1 if self.hasBoundaryLayers else 0)] and ans.shape == ansConv.shape:
@@ -485,22 +501,23 @@ class BasisNetwork(torch.nn.Module):
                 ans = self.mlps[i](ans)
             if self.edgeMLP is not None and i < layers - 1:
                 if verbose:
-                    print(f'Running Edge MLP {self.edgeMLP["inputFeatures"]} -> {self.edgeMLP["output"]} features')
+                    print(f'Layer[{i}]:\tRunning Edge MLP {self.edgeMLP["inputFeatures"]} -> {self.edgeMLP["output"]} features')
                 fluidEdgeLengths = self.edgeMLPs[i](fluidEdgeLengths)
                 fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
             if self.vertexMLP is not None and i < layers - 1:
                 if verbose:
-                    print(f'Running Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features')
+                    print(f'Layer[{i}]:\tRunning Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features')
                 transposedFeatures = ans.view(batches,-1, *ans.shape[1:])
                 ans = self.vertexMLPs[i](transposedFeatures)
                 ans = ans.view(-1, *ans.shape[2:])
+
         if self.outputDecoder is not None:
             if verbose:
                 print(f'(pre outputDecoder) ans: {ans.shape}')
             ans = self.outputDecoder(ans.view(batches,-1, *ans.shape[1:]))
             ans = ans.view(-1, *ans.shape[2:])
             if verbose:
-                print(f'(post outputDecoder) ans: {ans.shape}')
+                print(f'(post outputDecoder) ans: {ans.shape} [min: {torch.min(ans)}, max: {torch.max(ans)}, mean: {torch.mean(ans)}]')
 
         return ans * self.outputScaling #(ans * outputScaling) if self.dim == 2 else ans
     
