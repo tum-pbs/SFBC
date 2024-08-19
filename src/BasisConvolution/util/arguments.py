@@ -71,4 +71,8 @@ parser.add_argument('--skipLastShift', type = bool, default = argparse.SUPPRESS,
 parser.add_argument('--scaleShiftLoss', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Shifting the loop')
 parser.add_argument('--integrationScheme', type = str, default = argparse.SUPPRESS, help='Integration scheme')
 
+parser.add_argument('--shiftCFL', type = float, default = argparse.SUPPRESS, help='Integration scheme')
+parser.add_argument('--shiftIters', type = int, default = argparse.SUPPRESS, help='Integration scheme')
+
+
 parser.add_argument('--exportPath', type = str, default = argparse.SUPPRESS, help='Export path')

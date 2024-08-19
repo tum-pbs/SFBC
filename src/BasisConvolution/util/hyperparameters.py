@@ -66,6 +66,8 @@ def defaultHyperParameters():
         'outputDecoder': None,
         'edgeMLP': None,
         'vertexMLP': None,
+        'shiftCFL': 10,
+        'shiftIters': 1,
         'integrationScheme': 'semiImplicitEuler',
     }
     return hyperParameterDict
@@ -135,6 +137,9 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['activation'] = args.activation if hasattr(args, 'activation') else hyperParameterDict['activation']
     hyperParameterDict['exportPath'] = args.exportPath if hasattr(args, 'exportPath') else hyperParameterDict['exportPath']
     hyperParameterDict['integrationScheme'] = args.integrationScheme if hasattr(args, 'integrationScheme') else hyperParameterDict['integrationScheme']
+    hyperParameterDict['shiftCFL'] = args.shiftCFL if hasattr(args, 'shiftCFL') else hyperParameterDict['shiftCFL'] 
+    hyperParameterDict['shiftIters'] = args.shiftIters if hasattr(args, 'shiftIters') else hyperParameterDict['shiftIters']
+
 
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
     # hyperParameterDict['dtype'] = torch.
@@ -264,6 +269,9 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'shifting', 'shiftLoss', hyperParameterDict, 'shiftLoss')
         parseEntry(cfg, 'shifting', 'scaleShiftLoss', hyperParameterDict, 'scaleShiftLoss')
         parseEntry(cfg, 'shifting', 'integrationScheme', hyperParameterDict, 'integrationScheme')
+        parseEntry(cfg, 'shifting', 'shiftIters', hyperParameterDict, 'shiftIters')
+        parseEntry(cfg, 'shifting', 'shiftCFL', hyperParameterDict, 'shiftCFL')
+
         parseEntry(cfg, 'dataset', 'dataIndex', hyperParameterDict, 'dataIndex')
         parseEntry(cfg, 'shifting', 'skipLastShift', hyperParameterDict, 'skipLastShift')
         parseEntry(cfg, 'loss', 'dxdtLossScaling', hyperParameterDict, 'dxdtLossScaling')
