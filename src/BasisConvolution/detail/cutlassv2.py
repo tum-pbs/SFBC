@@ -36,7 +36,7 @@ def sine(x: torch.Tensor, n : int, phase : float = 0):
 
 @torch.jit.script
 def convolutionOpBackwardFeatures(grad_output: torch.Tensor, edge_index : torch.Tensor, features_i : torch.Tensor, features_j : torch.Tensor, edge_attr : torch.Tensor, edge_weights : Optional[torch.Tensor], weight : torch.Tensor, 
-                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False):
+                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, featureMode: str = 'j'):
     # with record_function("convolution op - Feature Lookup"): 
     #     x_j = features_j[edge_index[1]]
     # with record_function("convolution op - Weight Function Application"): 
@@ -49,8 +49,16 @@ def convolutionOpBackwardFeatures(grad_output: torch.Tensor, edge_index : torch.
     transposedWeights = torch.transpose(weight, -2, -1)    
     featureGrad = torch.zeros_like(features_j)        
     for batch in batches:
-        jj = edge_index[1,batch]
-        x_j = features_j[jj]
+        if featureMode == 'j':
+            x_j = features_j[edge_index[1,batch]]
+        elif featureMode == 'i':
+            x_j = features_i[edge_index[0,batch]]
+        elif featureMode == 'sum':
+            x_j = features_i[edge_index[0,batch]] + features_j[edge_index[1,batch]]
+        elif featureMode == 'diff':
+            x_j = features_i[edge_index[0,batch]] - features_j[edge_index[1,batch]]
+        else:
+            raise ValueError(f'Unknown feature mode {featureMode}')
         x_j = x_j if edge_weights is None else x_j * edge_weights[batch,None]
         with record_function("convolution op - Batch"): 
             with record_function("convolution op - Batch - DMCF Mapping"): 
@@ -90,7 +98,7 @@ def convolutionOpBackwardFeatures(grad_output: torch.Tensor, edge_index : torch.
 
 @torch.jit.script
 def convolutionOpBackwardWeight(grad_output: torch.Tensor, edge_index : torch.Tensor, features_i : torch.Tensor, features_j : torch.Tensor, edge_attr : torch.Tensor, edge_weights :Optional[torch.Tensor], weight : torch.Tensor, 
-                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False):
+                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, featureMode: str = 'j'):
     # with record_function("convolution op - Feature Lookup"): 
         # x_j = features_j[edge_index[1]]
     # with record_function("convolution op - Weight F/unction Application"): 
@@ -103,8 +111,16 @@ def convolutionOpBackwardWeight(grad_output: torch.Tensor, edge_index : torch.Te
     transposedWeights = torch.transpose(weight, -2, -1)        
     weightGrad = weight.new_zeros(weight.shape)                    
     for batch in batches:
-        jj = edge_index[1,batch]
-        x_j = features_j[jj]
+        if featureMode == 'j':
+            x_j = features_j[edge_index[1,batch]]
+        elif featureMode == 'i':
+            x_j = features_i[edge_index[0,batch]]
+        elif featureMode == 'sum':
+            x_j = features_i[edge_index[0,batch]] + features_j[edge_index[1,batch]]
+        elif featureMode == 'diff':
+            x_j = features_i[edge_index[0,batch]] - features_j[edge_index[1,batch]]
+        else:
+            raise ValueError(f'Unknown feature mode {featureMode}')
         x_j = x_j if edge_weights is None else x_j * edge_weights[batch,None]
 #         print(batch, batches)
         with record_function("convolution op - Batch"): 
@@ -143,7 +159,7 @@ def convolutionOpBackwardWeight(grad_output: torch.Tensor, edge_index : torch.Te
 
 @torch.jit.script
 def convolutionOpBackward(grad_output: torch.Tensor, edge_index : torch.Tensor, features_i : torch.Tensor, features_j : torch.Tensor, edge_attr : torch.Tensor, edge_weights : Optional[torch.Tensor], weight : torch.Tensor, 
-                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, weightGradient : bool = True, featureGradient : bool = True):
+                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, weightGradient : bool = True, featureGradient : bool = True, featureMode: str = 'j'):
     # with record_function("convolution op - Feature Lookup"): 
         # x_j = features_j[edge_index[1]]
     # with record_function("convolution op - Weight Function Application"): 
@@ -159,9 +175,17 @@ def convolutionOpBackward(grad_output: torch.Tensor, edge_index : torch.Tensor, 
     weightGrad = weight.new_zeros(weight.shape)           
     gradFeatures = torch.index_select(grad_output, 0, edge_index[0])    
 
-    for batch in batches:
-        jj = edge_index[1,batch]
-        x_j = features_j[jj]
+    for batch in batches:        
+        if featureMode == 'j':
+            x_j = features_j[edge_index[1,batch]]
+        elif featureMode == 'i':
+            x_j = features_i[edge_index[0,batch]]
+        elif featureMode == 'sum':
+            x_j = features_i[edge_index[0,batch]] + features_j[edge_index[1,batch]]
+        elif featureMode == 'diff':
+            x_j = features_i[edge_index[0,batch]] - features_j[edge_index[1,batch]]
+        else:
+            raise ValueError(f'Unknown feature mode {featureMode}')
         x_j = x_j if edge_weights is None else x_j * edge_weights[batch,None]
         with record_function("convolution op - Batch"): 
             with record_function("convolution op - Batch - DMCF Mapping"): 
@@ -205,7 +229,7 @@ def convolutionOpBackward(grad_output: torch.Tensor, edge_index : torch.Tensor, 
 
 @torch.jit.script
 def convolutionOp(edge_index : torch.Tensor, features_i : torch.Tensor, features_j : torch.Tensor, edge_attr : torch.Tensor, edge_weights : Optional[torch.Tensor], weight : torch.Tensor, 
-                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False):
+                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, featureMode: str = 'j'):
     # with record_function("convolution op - Feature Lookup"): 
     #     x_j = features_j[edge_index[1]]
     # with record_function("convolution op - Weight Function Application"): 
@@ -216,8 +240,19 @@ def convolutionOp(edge_index : torch.Tensor, features_i : torch.Tensor, features
     with record_function("convolution op - Output Allocation"): 
         out = features_i.new_zeros((features_i.shape[0], weight.shape[-1])).type(features_i.dtype)
     for batch in batches:
-        jj = edge_index[1,batch]
-        x_j = features_j[jj]
+        # jj = edge_index[1,batch]
+        if featureMode == 'j':
+            x_j = features_j[edge_index[1,batch]]
+        elif featureMode == 'i':
+            x_j = features_i[edge_index[0,batch]]
+        elif featureMode == 'sum':
+            x_j = features_i[edge_index[0,batch]] + features_j[edge_index[1,batch]]
+        elif featureMode == 'diff':
+            x_j = features_i[edge_index[0,batch]] - features_j[edge_index[1,batch]]
+        else:
+            raise ValueError(f'Unknown feature mode {featureMode}')
+
+        # x_j = features_j[jj]
         x_j = x_j if edge_weights is None else x_j * edge_weights[batch,None]
         with record_function("convolution op - Batch"): 
             with record_function("convolution op - Batch - DMCF Mapping"): 
@@ -249,7 +284,7 @@ def convolutionOp(edge_index : torch.Tensor, features_i : torch.Tensor, features
 class cutlass(torch.autograd.Function):
     @staticmethod
     def forward(ctx, edge_index : torch.Tensor, features_i : torch.Tensor, features_j : torch.Tensor, edge_attr : torch.Tensor, edge_weights : Optional[torch.Tensor], weight : torch.Tensor, 
-                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False):
+                  dim_size : int, dim : int, size : List[int], rbfs : List[str], periodic : List[bool], forwardBatchSize : int, backwardBatchSize : int, normalized: bool = False, featureMode: str = 'j'):
         with record_function("cutlass forward step"): 
             ctx.save_for_backward(edge_index, features_i, features_j, edge_attr, edge_weights, weight)
 #             print('fwd', normalized)
@@ -262,25 +297,26 @@ class cutlass(torch.autograd.Function):
             ctx.forwardBatchSize = forwardBatchSize
             ctx.backwardBatchSize = backwardBatchSize
             ctx.normalized = normalized
+            ctx.featureMode = featureMode
 
-            return convolutionOp(edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized)
+            return convolutionOp(edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized, featureMode)
     @staticmethod
     def backward(ctx, grad_output):
         with record_function("cutlass backward step"): 
             edge_index, features_i, features_j, edge_attr, edge_weights, weight = ctx.saved_tensors
-            dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized = ctx.dim_size, ctx.dim, ctx.size, ctx.rbfs, ctx.periodic, ctx.forwardBatchSize, ctx.backwardBatchSize, ctx.normalized
+            dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized, featureMode = ctx.dim_size, ctx.dim, ctx.size, ctx.rbfs, ctx.periodic, ctx.forwardBatchSize, ctx.backwardBatchSize, ctx.normalized, ctx.featureMode
 
 #             print('bck', normalized)
             featureGrad = None
             weightGrad = None
             if ctx.needs_input_grad[2] and not ctx.needs_input_grad[5]:  
                 with record_function("cutlass backward feature Gradient"): 
-                    featureGrad = convolutionOpBackwardFeatures(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized)
+                    featureGrad = convolutionOpBackwardFeatures(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized, featureMode)
             if not ctx.needs_input_grad[2] and ctx.needs_input_grad[5]:  
                 with record_function("cutlass backward - weight Gradient"): 
-                    weightGrad = convolutionOpBackwardWeight(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized)
+                    weightGrad = convolutionOpBackwardWeight(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized, featureMode)
             if ctx.needs_input_grad[2] and ctx.needs_input_grad[5]:  
                 with record_function("cutlass backward - both"): 
-                    featureGrad, weightGrad = convolutionOpBackward(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized)
+                    featureGrad, weightGrad = convolutionOpBackward(grad_output, edge_index, features_i, features_j, edge_attr, edge_weights, weight, dim_size, dim, size, rbfs, periodic, forwardBatchSize, backwardBatchSize, normalized, True, True, featureMode)
 
-            return None, None, featureGrad, None, None, weightGrad, None, None, None, None, None, None, None, None 
+            return None, None, featureGrad, None, None, weightGrad, None, None, None, None, None, None, None, None, None

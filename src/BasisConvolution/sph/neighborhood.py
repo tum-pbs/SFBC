@@ -147,7 +147,7 @@ def neighborSearch(queryState, referenceState, config, computeKernels = True, pr
             print(f'Updating Neighborsearch because priorState is None')
         dirty = True
 
-
+    # hasCompactRadius = False
     if dirty:
         if hasCompactRadius:
             neighborhood = neighborSearchExisting(queryState['positions'], queryState['supports'], neighborDatastructure, 'scatter', 1, 'cpp')
@@ -172,6 +172,8 @@ def neighborSearch(queryState, referenceState, config, computeKernels = True, pr
 
     numNeighbors = countUniqueEntries(neighborhood_actual[0], pos_x)[1].to(torch.int32)
     neighborOffsets = torch.hstack((torch.tensor([0], dtype = torch.int32, device = numNeighbors.device), torch.cumsum(numNeighbors, dim = 0).to(torch.int32)))[:-1]\
+
+    # return pos_x, pos_y, h_i, h_j
 
     # numNeighbors, neighborOffsets, i, j, rij, xij, hij_actual = computeNeighborhood_cpp(
     # neighborhood, 
