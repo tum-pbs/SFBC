@@ -55,7 +55,7 @@ def defaultHyperParameters():
         'shiftLoss': False,
         'activation': 'relu',
         'dataIndex': '',
-        'dxdtLossScaling': 1,
+        'dxdtLossScaling': 2,
         'exportPath': 'experiments',
         'arch':'',
         'scaleShiftLoss': False,
@@ -68,6 +68,7 @@ def defaultHyperParameters():
         'vertexMLP': None,
         'shiftCFL': 10,
         'shiftIters': 1,
+        'lossTerms': 'both',
         'integrationScheme': 'semiImplicitEuler',
     }
     return hyperParameterDict
@@ -81,7 +82,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['initialLR'] = args.lr if hasattr(args, 'lr') else hyperParameterDict['initialLR']
     hyperParameterDict['finalLR'] = args.finalLR if hasattr(args, 'finalLR') else hyperParameterDict['finalLR']
     hyperParameterDict['lrStep'] = args.lrStep if hasattr(args, 'lrStep') else hyperParameterDict['lrStep']
-    
+    hyperParameterDict['lossTerms'] = args.lossTerms if hasattr(args, 'lossTerms') else hyperParameterDict['lossTerms']
     
     hyperParameterDict['epochs'] = args.epochs if hasattr(args, 'epochs') else hyperParameterDict['epochs']
     hyperParameterDict['frameDistance'] = args.frameDistance if hasattr(args, 'frameDistance') else hyperParameterDict['frameDistance']
@@ -256,6 +257,7 @@ def parseConfig(config, hyperParameterDict):
 
         parseEntry(cfg, 'loss', 'li', hyperParameterDict, 'liLoss')
         parseEntry(cfg, 'loss', 'loss', hyperParameterDict, 'loss')
+        parseEntry(cfg, 'loss', 'lossTerms', hyperParameterDict, 'lossTerms')
         parseEntry(cfg, 'network', 'ff', hyperParameterDict, 'fluidFeatures')
         parseEntry(cfg, 'network', 'bf', hyperParameterDict, 'boundaryFeatures')
         parseEntry(cfg, 'network', 'gt', hyperParameterDict, 'groundTruth')
@@ -381,6 +383,8 @@ def toPandaDict(hyperParameterDict):
         'widths': hyperParameterDict['widths'],
         'layers': hyperParameterDict['layers'],
         'seed': hyperParameterDict['seed'],
+
+        'lossTerms': hyperParameterDict['lossTerms'],
 
         'windowFunction': hyperParameterDict['windowFunction'] if hyperParameterDict['windowFunction'] is not None else 'None',
         'coordinateMapping' : hyperParameterDict['coordinateMapping'],

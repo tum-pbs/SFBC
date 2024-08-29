@@ -63,6 +63,8 @@ parser.add_argument('--vertexMLP', type = bool, default = argparse.SUPPRESS, act
 parser.add_argument('--independent_dxdt', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='dxdt predicts velocity as well')
 parser.add_argument('--networkType', type = str, default = argparse.SUPPRESS, help='Shifting the loop')
 
+parser.add_argument('--lossTerms', type = str, default = argparse.SUPPRESS, help='Loss terms')
+
 parser.add_argument('--dataIndex', type = str, default = argparse.SUPPRESS, help='Data override')
 # dxdtLossScaling
 parser.add_argument('--dxdtLossScaling', type = float, default = argparse.SUPPRESS, help='Data override')
