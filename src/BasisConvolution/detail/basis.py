@@ -1,5 +1,5 @@
 import torch
-from .util import cpow, getDistancesRel, getDistancesRel_offset
+from .util import cpow, getDistancesRel, getDistancesRel_offset, getSpacing
 import numpy as np
 
 @torch.jit.script
@@ -32,10 +32,15 @@ def evalRBFSeries(n : int, x : torch.Tensor, which : str = 'linear', epsilon : f
         elif which == 'wendland6':            res = cpow(1 - r/(epsilon * 1.), 8) * (1 + 8 * r/(epsilon * 1.) + 25 * (r/(epsilon * 1.)) **2 + 32 * (r * (epsilon * 1.))**3)
         elif which == 'poly6':                res = cpow(1 - (r/epsilon)**2, 3)
         elif which == 'spiky':                res = cpow(1 - r/epsilon, 3)
-        elif which == 'square':               res = torch.where(torch.logical_and(rRel > -0.5 * epsilon, rRel <= 0.5 * epsilon), torch.ones_like(r), torch.zeros_like(r))
+        elif which == 'square':               
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
         elif which == 'square_offset':
-            rRel = getDistancesRel_offset(n, x, periodic)
-            res = torch.where(torch.logical_and(rRel > -0.5 * 1, rRel <= 0.5 * 1), torch.ones_like(r), torch.zeros_like(r))
+            rRel = getDistancesRel_offset(n, x, False)
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
         else:
             raise ValueError('Unknown basis function')
     elif adjustSpacing and not normalized:
@@ -54,10 +59,15 @@ def evalRBFSeries(n : int, x : torch.Tensor, which : str = 'linear', epsilon : f
         elif which == 'wendland6':            res = cpow(1 - r/(epsilon * 2.207940), 8) * (1 + 8 * r/(epsilon * 2.207940) + 25 * (r/(epsilon * 2.207940)) **2 + 32 * (r * (epsilon * 2.207940))**3)
         elif which == 'poly6':                res = cpow(1 - (r/epsilon)**2, 3)
         elif which == 'spiky':                res = cpow(1 - r/epsilon, 3)
-        elif which == 'square':               res = torch.where(torch.logical_and(rRel > -0.5 * epsilon, rRel <= 0.5 * epsilon), torch.ones_like(r), torch.zeros_like(r))
+        elif which == 'square':               
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
         elif which == 'square_offset':
-            rRel = getDistancesRel_offset(n, x, periodic)
-            res = torch.where(torch.logical_and(rRel > -0.5 * 1, rRel <= 0.5 * 1), torch.ones_like(r), torch.zeros_like(r))
+            rRel = getDistancesRel_offset(n, x, False)
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
         else:
             raise ValueError('Unknown basis function')
     elif not adjustSpacing and normalized:
@@ -76,10 +86,15 @@ def evalRBFSeries(n : int, x : torch.Tensor, which : str = 'linear', epsilon : f
         elif which == 'wendland6':            res = cpow(1 - r/(epsilon * 1.3856863702979971), 8) * (1 + 8 * r/(epsilon * 1.3856863702979971) + 25 * (r/(epsilon * 1.3856863702979971)) **2 + 32 * (r * (epsilon * 1.3856863702979971))**3)
         elif which == 'poly6':                res = cpow(1 - (r/ 2.6936980947728384)**2, 3)
         elif which == 'spiky':                res = cpow(1 - r/3, 3)
-        elif which == 'square':               res = torch.where(torch.logical_and(rRel > -0.5 * 1, rRel <= 0.5 * 1), torch.ones_like(r), torch.zeros_like(r))
+        elif which == 'square':               
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
         elif which == 'square_offset':
-            rRel = getDistancesRel_offset(n, x, periodic)
-            res = torch.where(torch.logical_and(rRel > -0.5 * 1, rRel <= 0.5 * 1), torch.ones_like(r), torch.zeros_like(r))
+            rRel = getDistancesRel_offset(n, x, False)
+            minDist, minDistIdx = torch.min(rRel**2, 0)
+            res = torch.zeros(n, rRel.shape[1], device = r.device)
+            res[minDistIdx, torch.arange(rRel.shape[1], device = r.device)] = 1
             # print('square_offset')
         else:
             raise ValueError('Unknown basis function')

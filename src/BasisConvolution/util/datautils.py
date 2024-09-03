@@ -201,6 +201,8 @@ def parseDataset(hyperParameterDict, files):
     return training, train_ds, train_dataloader, iter(train_dataloader)
 
 def isTemporalData(inFile):
+    if 'simulation' in inFile:
+        return True
     if 'simulationExport' in inFile:
         return True
     if 'simulationData' in inFile:
@@ -211,6 +213,8 @@ def isTemporalData(inFile):
 def getFrameCount(inFile):
     if 'simulationExport' in inFile:
         return int(len(inFile['simulationExport'].keys()) -1)
+    if 'simulation' in inFile:
+        return int(len(inFile['simulation'].keys()) -1)
     if 'simulationData' in inFile:
         if 'fluidPosition' in inFile['simulationData']:
             return inFile['simulationData']['fluidPosition'].shape[0] - 1
@@ -221,6 +225,8 @@ def getFrameCount(inFile):
 def getFrames(inFile):
     if 'simulationExport' in inFile:
         return [int(i) for i in inFile['simulationExport'].keys()], list(inFile['simulationExport'].keys())
+    if 'simulation' in inFile:
+        return np.arange(len(inFile['simulation'].keys())).tolist(), list(inFile['simulation'].keys())
     if 'simulationData' in inFile:
         if 'fluidPosition' in inFile['simulationData']:
             return np.arange(inFile['simulationData']['fluidPosition'].shape[0]).tolist(), np.arange(inFile['simulationData']['fluidPosition'].shape[0]).tolist()
@@ -270,6 +276,8 @@ def getStyle(inFile):
                 else:
                     raise ValueError('Unsupported Format for file')
         else:
+            if 'simulation' in inFile: 
+                return 'waveEquation'
             # This should be test case I with flat 1D data
             if isTemporalData(inFile):
                 return 'testcase_I'

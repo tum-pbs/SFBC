@@ -84,12 +84,13 @@ def getDistancesRel_offset(n : int, x : torch.Tensor, periodic : bool = False):
         rc = torch.unsqueeze(x,dim=0) - centroids + 2.
         return torch.minimum(torch.minimum(torch.abs(ra)/spacing, torch.abs(rb)/spacing), torch.abs(rc)/spacing)
         
-    spacing = getSpacing(n + 1, False)
+    spacing = getSpacing(n, False)
     
-    centroids = torch.linspace(-1. + spacing / 2,1. - spacing/2,n, device = x.device) if n > 1 else torch.tensor([0.], device = x.device)
-    centroids = torch.unsqueeze(centroids, dim = 1)
+    # centroids = torch.linspace(-1. + spacing / 2,1. - spacing/2,n, device = x.device) if n > 1 else torch.tensor([0.], device = x.device)
+    centroids = torch.linspace(-1.,1.,n+1, device = x.device)[:-1] if n > 1 else torch.tensor([0.], device = x.device)
+    centroids = torch.unsqueeze(centroids, dim = 1) + spacing / 2
     r = torch.unsqueeze(x,dim=0) - centroids
-    return r  / spacing
+    return r#  / (centroids[1] - centroids[0])
 
 
 # Evaluate a set of radial basis functions with a variety of options

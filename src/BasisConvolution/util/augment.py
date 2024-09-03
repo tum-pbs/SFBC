@@ -62,7 +62,7 @@ from BasisConvolution.util.testcases import loadFrame
 from BasisConvolution.util.features import getFeatures
 from BasisConvolution.util.radius import searchNeighbors
 
-def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8):
+def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False):
     if unrollLength > hyperParameterDict['maxUnroll']:
         unrollLength = hyperParameterDict['maxUnroll']
     config, attributes, currentState, priorState, trajectoryStates = loadFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength)
@@ -98,6 +98,9 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8):
                     state['boundaryToFluidNeighborhood'] = currentState['boundaryToFluidNeighborhood']
             else:
                 searchNeighbors(state, config, computeKernels = True)
+    if skipAssembly:
+        return config, attributes, currentState, priorState, trajectoryStates
+
     currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorState if priorState is not None else None, 'fluid', config, currentState['time'] - priorState['time'] if priorState is not None else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None)
     
     # print('boundary')
@@ -112,8 +115,8 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8):
     return config, attributes, augmentedStates[0], augmentedStates[1] if priorState is not None else None, augmentedStates[2:] if priorState is not None else augmentedStates[1:]
 
 
-def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8):
+def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False):
     if unrollLength > hyperParameterDict['maxUnroll']:
         unrollLength = hyperParameterDict['maxUnroll']
-    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength) for index in bdata]
+    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly) for index in bdata]
     return [data[0] for data in data], [data[1] for data in data], [data[2] for data in data], [data[3] for data in data], [data[4] for data in data]

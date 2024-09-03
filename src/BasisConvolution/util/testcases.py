@@ -548,10 +548,135 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
 
     # if hyperParameterDict['adjustForFrameDistance']:
 
+    return config, attributes, state, priorState, nextStates
 
+from BasisConvolution.sph.kernels import getKernel
+import numpy as np
 
+def loadAdditional(inGrp, state, additionalData, device, dtype):
+    for dataKey in additionalData:
+        if dataKey in inGrp:
+            state[dataKey] = torch.from_numpy(inGrp[dataKey][:]).to(device = device, dtype = dtype)
+        else:
+            warnings.warn('Additional data key %s not found in group' % dataKey)
+    return state
 
+def loadGroup_waveEqn(inFile, inGrp, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    dynamicBoundaryData = None
 
+    rho = torch.from_numpy(inFile['gridState']['densities'][:]).to(device = device, dtype = dtype)
+    areas = torch.ones_like(rho) * inFile.attrs['dx']
+    state = {
+        'fluid': {
+            'positions': torch.from_numpy(inFile['gridState']['positions'][:]).to(device = device, dtype = dtype),
+            'densities': rho * 1,
+            'areas': areas,
+            'masses': areas * 1,
+            'supports': torch.from_numpy(inFile['gridState']['supports'][:]).to(device = device, dtype = dtype),
+            'indices': torch.arange(len(rho), device = device, dtype = torch.int64),
+            'numParticles': len(rho)
+        },
+        'boundary': None,
+        'time': inGrp.attrs['time'],
+        'dt': inFile.attrs['dt']
+    }
+    loadAdditional(inGrp, state['fluid'], additionalData, device, dtype)
+    # for dataKey in additionalData:
+        # state['fluid'][dataKey] = torch.from_numpy(np.array(inGrp[dataKey])).to(device = device, dtype = dtype)
+    
+    return state
+
+def loadFrame_waveEqn(inFile, fileName, key_, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    # print(key)
+    if isinstance(key_, str) and '_' in key_:
+        key = int(key_.split('_')[1])
+    else:
+        key = int(key_)
+
+    inGrp = inFile['simulation'][key_]
+
+    # print(inGrp.keys())
+    # for k in inFile.attrs.keys():
+    #     print(k, inFile.attrs[k])
+    # pass
+
+    # print(inFile.attrs.keys())
+    # for k in inFile.attrs.keys():
+        # print(k, inFile.attrs[k])
+
+    config = {
+        'domain':{
+            'dim': 2,
+            'minExtent': torch.tensor([-1, -1], device = device, dtype = dtype),
+            'maxExtent': torch.tensor([1, 1], device = device, dtype = dtype),
+            'periodic': torch.tensor([inFile.attrs['periodic'], inFile.attrs['periodic']], device = device, dtype = torch.bool),
+            'periodicity': torch.tensor([inFile.attrs['periodic'], inFile.attrs['periodic']], device = device, dtype = torch.bool),
+        },
+        'neighborhood':{
+            'scheme': 'compact',
+            'verletScale': 1.0
+        },
+        'compute':{
+            'device': device,
+            'dtype': dtype,
+            'precision': 'float32' if dtype == torch.float32 else 'float64',
+        },
+        'kernel':{
+            'name': inFile.attrs['kernel'],
+            'targetNeighbors': inFile.attrs['resampledNeighbors'],
+            'function': getKernel(inFile.attrs['kernel'])
+        },
+        'boundary':{
+            'active': False
+        },
+        'fluid':{
+            'rho0': 1,
+            'cs': 20,
+        },
+        'particle':{
+            'support': inFile.attrs['h']
+        }
+    }
+
+    attributes = {
+        'support': inFile.attrs['h'],
+        'targetNeighbors': inFile.attrs['resampledNeighbors'],
+        'restDensity': 1,
+        'dt': inFile.attrs['dt'],
+        'time': inGrp.attrs['time'],
+        'radius': inFile.attrs['radius'],
+        'area': inFile.attrs['dx'],
+    }
+    staticBoundaryData = None
+
+    state = loadGroup_waveEqn(inFile, inGrp, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = buildPriorState, buildNextState = buildNextState)
+
+    iPriorKey = int(key) - hyperParameterDict['frameDistance']
+
+    priorState = None
+    if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
+        if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
+            priorState = copy.deepcopy(state)
+        else:
+            priorState = loadGroup_waveEqn(inFile, inFile['simulation']['timestep_%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+        
+
+    nextStates = []
+    if buildNextState:
+        if unrollLength == 0 and hyperParameterDict['frameDistance'] == 0:
+            nextStates = [copy.deepcopy(state)]
+        if unrollLength == 0 and hyperParameterDict['frameDistance'] != 0:
+            nextStates = [copy.deepcopy(state)]
+            warnings.warn('Unroll length is zero, but frame distance is not zero')
+        if unrollLength != 0 and hyperParameterDict['frameDistance'] == 0:
+            nextStates = [copy.deepcopy(state)] * unrollLength
+        if unrollLength != 0 and hyperParameterDict['frameDistance'] != 0:
+            for u in range(unrollLength):
+                unrollKey = int(key) + hyperParameterDict['frameDistance'] * (u + 1)
+                nextState = loadGroup_waveEqn(inFile, inFile['simulation']['timestep_%05d' % unrollKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
+                nextStates.append(nextState)            
+
+    # if hyperParameterDict['adjustForFrameDistance']:
 
     return config, attributes, state, priorState, nextStates
 
@@ -569,6 +694,8 @@ def loadFrame(index, dataset, hyperParameterDict, unrollLength = 8):
 
     inFile = h5py.File(fileName, 'r')
     try:
+        if dataset.fileFormat == 'waveEquation':
+            return loadFrame_waveEqn(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, additionalData= [] if 'additionalData' not in hyperParameterDict else hyperParameterDict['additionalData'], device = hyperParameterDict['device'], dtype = hyperParameterDict['dtype'])
         if 'simulationExport' in inFile:
             attributes = {
                 'support': None,

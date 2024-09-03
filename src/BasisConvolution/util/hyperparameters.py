@@ -276,6 +276,9 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'shifting', 'skipLastShift', hyperParameterDict, 'skipLastShift')
         parseEntry(cfg, 'loss', 'dxdtLossScaling', hyperParameterDict, 'dxdtLossScaling')
 
+        if 'additionalData' in cfg['dataset']:
+            hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
+
         if 'inputEncoder' in cfg:
             hyperParameterDict['inputEncoder'] = cfg['inputEncoder']
         else:
