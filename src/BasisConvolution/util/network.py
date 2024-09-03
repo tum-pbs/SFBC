@@ -29,6 +29,9 @@ def buildModel(hyperParameterDict, verbose = False):
     outputDecoder = hyperParameterDict['outputDecoder'] if 'outputDecoder' in hyperParameterDict else None
     edgeMLP = hyperParameterDict['edgeMLP'] if 'edgeMLP' in hyperParameterDict else None
     vertexMLP = hyperParameterDict['vertexMLP'] if 'vertexMLP' in hyperParameterDict else None
+    fcMLP = hyperParameterDict['fcLayerMLP'] if 'fcLayerMLP' in hyperParameterDict else None
+    aggloMLP = hyperParameterDict['agglomerateViaMLP'] if 'agglomerateViaMLP' in hyperParameterDict else False
+    activation = hyperParameterDict['activation'] if 'activation' in hyperParameterDict else 'relu'
 
     if verbose:
         print(f'fluidFeatureCount: {fluidFeatureCount}')
@@ -36,6 +39,7 @@ def buildModel(hyperParameterDict, verbose = False):
         print(f'layers: {layers}')
         print(f'coordinateMapping: {coordinateMapping}')
         print(f'windowFunction: {windowFunction}')
+        print(f'activation: {activation}')
 
         print(f'rbfs: {rbfs}')
         print(f'dims: {dims}')
@@ -50,8 +54,10 @@ def buildModel(hyperParameterDict, verbose = False):
         print(f'outputDecoder: {outputDecoder}')
         print(f'edgeMLP: {edgeMLP}')
         print(f'vertexMLP: {vertexMLP}')
+        print(f'fcMLP: {fcMLP}')
+        print(f'aggloMLP: {aggloMLP}')
 
-    model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP)
+    model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 
     model = model.to(hyperParameterDict['device'])
 

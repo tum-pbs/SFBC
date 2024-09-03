@@ -43,6 +43,8 @@ parser.add_argument('-norm', '--normalized', type=bool, default=argparse.SUPPRES
 parser.add_argument('--fluidFeatures', type=str, default=argparse.SUPPRESS, help='Features [default = "ones"]')
 parser.add_argument('--boundaryFeatures', type=str, default=argparse.SUPPRESS, help='Features [default = "ones"]')
 
+parser.add_argument('--numNeighbors', type=float, default=argparse.SUPPRESS, help='Number of neighbors [default = 32]')
+
 parser.add_argument('--groundTruth', type=str, default=argparse.SUPPRESS, help='Targets [default = "compute_density"]')
 parser.add_argument('--gtMode', type=str, default=argparse.SUPPRESS, help='Ground Truth mode [default = "abs"]')
 parser.add_argument('--outputBias', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Output bias [default = False]')

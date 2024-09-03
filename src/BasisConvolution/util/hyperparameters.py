@@ -70,6 +70,7 @@ def defaultHyperParameters():
         'shiftIters': 1,
         'lossTerms': 'both',
         'integrationScheme': 'semiImplicitEuler',
+        'numNeighbors': -1
     }
     return hyperParameterDict
 
@@ -140,6 +141,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['integrationScheme'] = args.integrationScheme if hasattr(args, 'integrationScheme') else hyperParameterDict['integrationScheme']
     hyperParameterDict['shiftCFL'] = args.shiftCFL if hasattr(args, 'shiftCFL') else hyperParameterDict['shiftCFL'] 
     hyperParameterDict['shiftIters'] = args.shiftIters if hasattr(args, 'shiftIters') else hyperParameterDict['shiftIters']
+    hyperParameterDict['numNeighbors'] = args.numNeighbors if hasattr(args, 'numNeighbors') else hyperParameterDict['numNeighbors']
 
 
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
@@ -247,6 +249,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'io', 'output', hyperParameterDict, 'output')
         parseEntry(cfg, 'io', 'input', hyperParameterDict, 'input')
         parseEntry(cfg, 'io', 'exportPath', hyperParameterDict, 'exportPath')
+        parseEntry(cfg, 'io', 'numNeighbors', hyperParameterDict, 'numNeighbors')
 
         parseEntry(cfg, 'dataset', 'frameDistance', hyperParameterDict, 'frameDistance')
         parseEntry(cfg, 'dataset', 'dataDistance', hyperParameterDict, 'dataDistance')

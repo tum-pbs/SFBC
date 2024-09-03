@@ -6,6 +6,16 @@ from BasisConvolution.util.datautils import isTemporalData
 from BasisConvolution.sph.kernels import getKernel
 # import warnings
 
+def computeSupport(area, targetNumNeighbors, dim):
+    if dim == 1:
+        return targetNumNeighbors * area
+    if dim == 2:
+        return np.sqrt(targetNumNeighbors * area / np.pi)
+    if dim == 3:
+        return (3 * targetNumNeighbors * area / (4 * np.pi))**(1/3)
+    else:
+        raise ValueError('Unsupported dimension %d' % dim)
+
 def loadAdditional(inGrp, state, additionalData, device, dtype):
     for dataKey in additionalData:
         if dataKey in inGrp:
@@ -16,8 +26,8 @@ def loadAdditional(inGrp, state, additionalData, device, dtype):
 
 def loadFrame_testcaseI(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
     attributes = {
-        'support': inFile.attrs['particleSupport'],
-        'targetNeighbors': inFile.attrs['particleSupport'] / inFile.attrs['particleRadius'],
+        'support': inFile.attrs['particleSupport'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['baseArea'], hyperParameterDict['numNeighbors'], 1),
+        'targetNeighbors':( inFile.attrs['particleSupport'] / inFile.attrs['particleRadius']) if hyperParameterDict['numNeighbors'] < 0 else hyperParameterDict['numNeighbors'],
         'restDensity': inFile.attrs['restDensity'],
         'dt': inFile.attrs['dt'],
         'time': inFile.attrs['dt'] * key,
@@ -161,6 +171,7 @@ def loadGroup_testcaseII(inFile, inGrp, staticBoundaryData, fileName, key, fileD
         dynamicBoundaryData = None
 
     areas = torch.from_numpy(inGrp['fluidArea'][:]).to(device = device, dtype = dtype)
+    support = computeSupport(inGrp['fluidArea'][0], hyperParameterDict['numNeighbors'], 2) if hyperParameterDict['numNeighbors'] > 0 else inGrp['fluidSupport'][0]
     state = {
         'fluid': {
             'positions': torch.from_numpy(inGrp['fluidPosition'][:]).to(device = device, dtype = dtype),
@@ -169,7 +180,7 @@ def loadGroup_testcaseII(inFile, inGrp, staticBoundaryData, fileName, key, fileD
             'densities': torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype) * inFile.attrs['restDensity'],
             'areas': areas,
             'masses': areas * inFile.attrs['restDensity'],
-            'supports': torch.from_numpy(inGrp['fluidSupport'][:]).to(device = device, dtype = dtype),
+            'supports': torch.ones_like(areas) * support, #torch.from_numpy(inGrp['fluidSupport'][:]).to(device = device, dtype = dtype),
             'indices': torch.from_numpy(inGrp['UID'][:]).to(device = device, dtype = torch.int64),
             'numParticles': len(areas)
         },
@@ -189,9 +200,11 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
     # print(key)
 
     inGrp = inFile['simulationExport'][key]
-
+    support = np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support']
+    if hyperParameterDict['numNeighbors'] > 0:
+        support = computeSupport(inGrp['fluidArea'][0], hyperParameterDict['numNeighbors'], 2)
     attributes = {
-        'support': np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support'],
+        'support': support,
         'targetNeighbors': inFile.attrs['targetNeighbors'],
         'restDensity': inFile.attrs['restDensity'],
         'dt': inGrp.attrs['dt'],
@@ -242,7 +255,7 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
                 'masses': torch.from_numpy(inFile['boundaryInformation']['boundaryArea'][:]).to(device = device, dtype = dtype) * config['fluid']['rho0'],
                 'velocities': torch.from_numpy(inFile['boundaryInformation']['boundaryVelocity'][:]).to(device = device, dtype = dtype),
                 'densities': torch.from_numpy(inFile['boundaryInformation']['boundaryRestDensity'][:]).to(device = device, dtype = dtype),
-                'supports': torch.from_numpy(inFile['boundaryInformation']['boundarySupport'][:]).to(device = device, dtype = dtype),
+                'supports': torch.from_numpy(inFile['boundaryInformation']['boundarySupport'][:]).to(device = device, dtype = dtype) if hyperParameterDict['numNeighbors'] < 0 else torch.ones_like(torch.from_numpy(inFile['boundaryInformation']['boundarySupport'][:]).to(device = device, dtype = dtype)) * support,
                 'bodyIDs': torch.from_numpy(inFile['boundaryInformation']['boundaryBodyAssociation'][:]).to(device = device, dtype = torch.int64),
                 'numParticles': len(inFile['boundaryInformation']['boundaryPosition'][:]),
             } if 'boundaryInformation' in inFile else None
@@ -262,7 +275,7 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
         dynamicBoundaryData['areas'] = torch.from_numpy(inGrp['boundaryArea'][:]).to(device = device, dtype = dtype) if 'boundaryArea' in inGrp else dynamicBoundaryData['areas']
         dynamicBoundaryData['velocities'] = torch.from_numpy(inGrp['boundaryVelocity'][:]).to(device = device, dtype = dtype) if 'boundaryVelocity' in inGrp else dynamicBoundaryData['velocities']
         dynamicBoundaryData['densities'] = torch.from_numpy(inGrp['boundaryDensity'][:]).to(device = device, dtype = dtype) if 'boundaryDensity' in inGrp else dynamicBoundaryData['densities']
-        dynamicBoundaryData['supports'] = torch.from_numpy(inGrp['boundarySupport'][:]).to(device = device, dtype = dtype) if 'boundarySupport' in inGrp else dynamicBoundaryData['supports']
+        dynamicBoundaryData['supports'] = (torch.from_numpy(inGrp['boundarySupport'][:]).to(device = device, dtype = dtype) if hyperParameterDict['numNeighbors'] < 0 else torch.from_numpy(inFile['boundaryInformation']['boundarySupport'][:].to(device = device, dtype = dtype)) * support) if 'boundarySupport' in inGrp else dynamicBoundaryData['supports']
         dynamicBoundaryData['bodyIDs'] = torch.from_numpy(inGrp['boundaryBodyAssociation'][:]).to(device = device, dtype = torch.int64) if 'boundaryBodyAssociation' in inGrp else dynamicBoundaryData['bodyIDs']
     else:
         dynamicBoundaryData = None
@@ -300,8 +313,9 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
     return config, attributes, state, priorState, nextStates
 
 def loadFrame_testcaseIV(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['volume'], hyperParameterDict['numNeighbors'], 3)
     attributes = {
-        'support': inFile.attrs['support'],
+        'support': support,
         'targetNeighbors': inFile.attrs['numNeighbors'],
         'restDensity': 1,
         'dt': 0,
@@ -440,6 +454,7 @@ def loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileDa
     # for k in inGrp.keys():
         # print(k, inGrp[k])
 
+    support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['area'], hyperParameterDict['numNeighbors'], 2)
     rho = torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype)
     areas = torch.ones_like(rho) * inFile.attrs['area']
     state = {
@@ -450,7 +465,7 @@ def loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileDa
             'densities': rho * inFile.attrs['restDensity'],
             'areas': areas,
             'masses': areas * inFile.attrs['restDensity'],
-            'supports': torch.ones_like(rho) * inFile.attrs['support'],
+            'supports': torch.ones_like(rho) * support,
             'indices': torch.from_numpy(inGrp['UID'][:]).to(device = device, dtype = torch.int64),
             'numParticles': len(rho)
         },
@@ -475,15 +490,18 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
         # print(k, inFile.attrs[k])
 
     config = parseSPHConfig(inFile, device, dtype)
-
+    area = inFile.attrs['radius'] **2 if 'area' not in inFile.attrs else inFile.attrs['area']
+    support = np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support']
+    if hyperParameterDict['numNeighbors'] > 0:
+        support = computeSupport(area, hyperParameterDict['numNeighbors'], 2)
     attributes = {
-        'support': np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support'],
+        'support': support,
         'targetNeighbors': inFile.attrs['targetNeighbors'],
         'restDensity': inFile.attrs['restDensity'],
         'dt': inGrp.attrs['dt'],
         'time': inGrp.attrs['time'],
         'radius': inFile.attrs['radius'] if 'radius' in inFile.attrs else inGrp.attrs['radius'],
-        'area': inFile.attrs['radius'] **2 if 'area' not in inFile.attrs else inFile.attrs['area'],
+        'area': area,
     }
     if 'boundaryInformation' in inFile:
         staticBoundaryData = {
@@ -547,6 +565,8 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
                 nextStates.append(nextState)            
 
     # if hyperParameterDict['adjustForFrameDistance']:
+
+    config['particle']['support'] = support
 
     return config, attributes, state, priorState, nextStates
 
