@@ -7,9 +7,9 @@ def parseEntry(config, namespace, variable, dictionary, target):
 
 def defaultHyperParameters():
     hyperParameterDict = {
-        'basisTerms': 4,
+        # 'basisTerms': 4,
         'coordinateMapping': 'cartesian',
-        'basisFunctions': 'linear',
+        # 'basisFunctions': 'linear',
         'windowFunction': 'None',
         'liLoss': 'yes',
         'initialLR': 0.01,
@@ -31,17 +31,17 @@ def defaultHyperParameters():
         'network': 'default',
         'normalized': False,
         'adjustForFrameDistance': True,
-        'cutlassBatchSize': 128,
+        # 'cutlassBatchSize': 128,
         'weight_decay': 0,
         'input': '',
         'input': './',
         'output': 'training',
-        'outputBias': False,
+        # 'outputBias': False,
         'loss': 'mse',
         'batchSize': 1,
-        'optimizedWeights': False,
-        'exponentialDecay': True,
-        'initializer': 'uniform',
+        # 'optimizedWeights': False,
+        # 'exponentialDecay': True,
+        # 'initializer': 'uniform',
         'fluidFeatures': 'constant:1',
         'boundaryFeatures': 'attributes:n constant:1',
         'boundary': True,
@@ -62,10 +62,75 @@ def defaultHyperParameters():
         'zeroOffset': True,
         'device': 'cpu',
         'dtype': torch.float32,
-        'inputEncoder': None,
-        'outputDecoder': None,
-        'edgeMLP': None,
-        'vertexMLP': None,
+
+        'inputEncoderActive': False,
+        'outputDecoderActive': False,
+        'edgeMLPActive': False,
+        'vertexMLPActive': False,
+        'fcLayerMLPActive': True,
+        
+        'inputEncoder': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [32,32],
+                'preNorm': True,
+                'postNorm': False,
+                'noLinear': True,
+                'channels': [1]
+            },
+        'outputDecoder': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [32,32],
+                'preNorm': True,
+                'postNorm': False,
+                'noLinear': False,
+                'channels': [-1,16,16]
+            },
+        'edgeMLP': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [32,32],
+                'preNorm': False,
+                'postNorm': False,
+                'noLinear': False,
+                'channels': [16,16]
+            },
+        'vertexMLP': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [48,48],
+                'preNorm': True,
+                'postNorm': True,
+                'noLinear': False,
+                'channels': [-1,8,8,-1]
+            },
+        'fcLayerMLP': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [48,48],
+                'preNorm': True,
+                'postNorm': True,
+                'noLinear': False,
+                'channels': [-1,8,8,-1]
+            },
+        'convLayer': {
+            'basisFunction': 'linear',
+            'basisTerms': 4,
+            'cutlassBatchSize': 128,
+            'initializer': 'uniform',
+            'optimizeWeights': False,
+            'exponentialDecay': True,
+            'cutlassNormalization': False,
+            'biasActive': False,
+            'mode': 'conv',
+            'vertexMode': 'j'
+        },
         'shiftCFL': 10,
         'shiftIters': 1,
         'lossTerms': 'both',
@@ -75,9 +140,17 @@ def defaultHyperParameters():
     return hyperParameterDict
 
 def parseArguments(args, hyperParameterDict):
-    hyperParameterDict['basisTerms'] = args.basisTerms if hasattr(args, 'basisTerms') else hyperParameterDict['basisTerms']
+    hyperParameterDict['convLayer']['basisTerms'] = args.basisTerms if hasattr(args, 'basisTerms') else hyperParameterDict['convLayer']['basisTerms']
+    hyperParameterDict['convLayer']['basisFunction'] = args.basisFunctions if hasattr(args, 'basisFunctions') else hyperParameterDict['convLayer']['basisFunction']
+    hyperParameterDict['convLayer']['cutlassNormalization'] = args.normalized if hasattr(args, 'normalized') else hyperParameterDict['convLayer']['cutlassNormalization']
+    hyperParameterDict['convLayer']['biasActive'] = args.biasActive if hasattr(args, 'biasActive') else hyperParameterDict['convLayer']['biasActive']
+    hyperParameterDict['convLayer']['optimizeWeights'] = args.optimizedWeights if hasattr(args, 'optimizeWeights') else hyperParameterDict['convLayer']['optimizeWeights']
+    hyperParameterDict['convLayer']['exponentialDecay'] = args.exponentialDecay  if hasattr(args, 'exponentialDecay') else hyperParameterDict['convLayer']['exponentialDecay']
+    hyperParameterDict['convLayer']['initializer'] = args.initializer if hasattr(args, 'initializer') else hyperParameterDict['convLayer']['initializer']
+    hyperParameterDict['convLayer']['cutlassBatchSize'] = args.cutlassBatchSize if hasattr(args, 'cutlassBatchSize') else hyperParameterDict['convLayer']['cutlassBatchSize']
+
+
     hyperParameterDict['coordinateMapping'] = args.coordinateMapping if hasattr(args, 'coordinateMapping') else hyperParameterDict['coordinateMapping']
-    hyperParameterDict['basisFunctions'] = args.basisFunctions if hasattr(args, 'basisFunctions') else hyperParameterDict['basisFunctions']
     hyperParameterDict['windowFunction'] =  args.windowFunction if hasattr(args, 'windowFunction') else hyperParameterDict['windowFunction']
     hyperParameterDict['liLoss'] = ('yes' if args.li else 'no' ) if hasattr(args, 'li') else hyperParameterDict['liLoss']
     hyperParameterDict['initialLR'] = args.lr if hasattr(args, 'lr') else hyperParameterDict['initialLR']
@@ -99,21 +172,15 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['jitterAmount'] =  args.jitterAmount if hasattr(args, 'jitterAmount') else hyperParameterDict['jitterAmount']
     hyperParameterDict['networkSeed'] =  args.networkseed if hasattr(args, 'networkseed') else hyperParameterDict['networkSeed']
     hyperParameterDict['network'] = args.network if hasattr(args, 'network') else hyperParameterDict['network']
-    hyperParameterDict['normalized'] = args.normalized if hasattr(args, 'normalized') else hyperParameterDict['normalized']
+    
     hyperParameterDict['adjustForFrameDistance'] = args.adjustForFrameDistance if hasattr(args, 'adjustForFrameDistance') else hyperParameterDict['adjustForFrameDistance']
-    hyperParameterDict['cutlassBatchSize'] = args.cutlassBatchSize if hasattr(args, 'cutlassBatchSize') else hyperParameterDict['cutlassBatchSize']
-    hyperParameterDict['normalized'] = args.normalized if hasattr(args, 'normalized') else hyperParameterDict['normalized']
+
     hyperParameterDict['weight_decay'] = args.weight_decay if hasattr(args, 'weight_decay') else hyperParameterDict['weight_decay']
     hyperParameterDict['zeroOffset'] = args.zeroOffset if hasattr(args, 'zeroOffset') else hyperParameterDict['zeroOffset']
 
     # hyperParameterDict['iterations'] = 10
-    hyperParameterDict['outputBias'] = args.outputBias if hasattr(args, 'outputBias') else hyperParameterDict['outputBias']
     hyperParameterDict['loss'] = args.loss if hasattr(args, 'loss') else hyperParameterDict['loss']
     hyperParameterDict['batchSize'] = args.batchSize if hasattr(args, 'batchSize') else hyperParameterDict['batchSize']
-
-    hyperParameterDict['optimizeWeights'] = args.optimizedWeights if hasattr(args, 'optimizedWeights') else hyperParameterDict['optimizedWeights']
-    hyperParameterDict['exponentialDecay'] = args.exponentialDecay  if hasattr(args, 'exponentialDecay') else hyperParameterDict['exponentialDecay']
-    hyperParameterDict['initializer'] = args.initializer if hasattr(args, 'initializer') else hyperParameterDict['initializer']
 
     hyperParameterDict['fluidFeatures'] = args.fluidFeatures if hasattr(args, 'fluidFeatures') else hyperParameterDict['fluidFeatures']
     hyperParameterDict['boundaryFeatures'] = args.boundaryFeatures if hasattr(args, 'boundaryFeatures') else hyperParameterDict['boundaryFeatures']
@@ -149,61 +216,29 @@ def parseArguments(args, hyperParameterDict):
 
     if hasattr(args, 'inputEncoder'):
         if args.inputEncoder == False:
-            hyperParameterDict['inputEncoder'] = None
-        elif args.inputEncoder == True and hyperParameterDict['inputEncoder'] is None:
-            hyperParameterDict['inputEncoder'] = {
-                'activation': 'celu',
-                'gain': 1,
-                'norm': True,
-                'layout': [32],
-                'preNorm': False,
-                'postNorm': True,
-                'noLinear': True,
-                'channels': 1
-            }
+            hyperParameterDict['inputEncoderActive'] = False
+        elif args.inputEncoder == True:
+            hyperParameterDict['inputEncoderActive'] = True
     if hasattr(args, 'outputDecoder'):
         if args.outputDecoder == False:
-            hyperParameterDict['outputDecoder'] = None
-        elif args.outputDecoder == True and hyperParameterDict['outputDecoder'] is None:
-            hyperParameterDict['outputDecoder'] = {
-                'activation': 'celu',
-                'gain': 1,
-                'norm': True,
-                'layout': [32],
-                # 'output': 1,
-                'preNorm': False,
-                'postNorm': True,
-                'noLinear': True,
-                'channels': 1
-            }
+            hyperParameterDict['outputDecoderActive'] = False
+        elif args.outputDecoder == True:
+            hyperParameterDict['outputDecoderActive'] = True
     if hasattr(args, 'edgeMLP'):
         if args.edgeMLP == False:
-            hyperParameterDict['edgeMLP'] = None
-        elif args.edgeMLP == True and hyperParameterDict['edgeMLP'] is None:
-            hyperParameterDict['edgeMLP'] = {
-                'activation': 'celu',
-                'gain': 1,
-                'norm': True,
-                'layout': [32],
-                'preNorm': False,
-                'postNorm': True,
-                'noLinear': False,
-                'channels': [8,2]
-            }
+            hyperParameterDict['edgeMLPActive'] = False
+        elif args.edgeMLP == True:
+            hyperParameterDict['edgeMLPActive'] = True
     if hasattr(args, 'vertexMLP'):
         if args.vertexMLP == False:
-            hyperParameterDict['vertexMLP'] = None
-        elif args.vertexMLP == True and hyperParameterDict['vertexMLP'] is None:
-            hyperParameterDict['vertexMLP'] = {
-                'activation': 'celu',
-                'gain': 1,
-                'norm': True,
-                'layout': [32],
-                'preNorm': False,
-                'postNorm': True,
-                'noLinear': False,
-                'channels': [8,1]
-            }
+            hyperParameterDict['vertexMLPActive'] = False
+        elif args.vertexMLP == True:
+            hyperParameterDict['vertexMLPActive'] = True
+    if hasattr(args, 'fcLayer'):
+        if args.fcLayer == False:
+            hyperParameterDict['fcLayerMLPActive'] = False
+        elif args.fcLayer == True:
+            hyperParameterDict['fcLayerMLPActive'] = True
 
 
     return hyperParameterDict
@@ -223,27 +258,27 @@ def parseConfig(config, hyperParameterDict):
 
         parseEntry(cfg, 'randomization', 'seed', hyperParameterDict, 'seed')
         parseEntry(cfg, 'randomization', 'networkSeed', hyperParameterDict, 'networkSeed')
-        parseEntry(cfg, 'randomization', 'initializer', hyperParameterDict, 'initializer')
-        parseEntry(cfg, 'randomization', 'exponentialDecay', hyperParameterDict, 'exponentialDecay')
-        parseEntry(cfg, 'randomization', 'optimizeWeights', hyperParameterDict, 'optimizeWeights')
+        # parseEntry(cfg, 'randomization', 'initializer', hyperParameterDict, 'initializer')
+        # parseEntry(cfg, 'randomization', 'exponentialDecay', hyperParameterDict, 'exponentialDecay')
+        # parseEntry(cfg, 'randomization', 'optimizeWeights', hyperParameterDict, 'optimizeWeights')
 
         parseEntry(cfg, 'network', 'coordinateMapping', hyperParameterDict, 'coordinateMapping')
         parseEntry(cfg, 'network', 'windowFunction', hyperParameterDict, 'windowFunction')
         if hyperParameterDict['windowFunction'] == 'None':
             hyperParameterDict['windowFunction'] = None
         parseEntry(cfg, 'network', 'activation', hyperParameterDict, 'activation')
-        parseEntry(cfg, 'network', 'outputBias', hyperParameterDict, 'outputBias')
+        # parseEntry(cfg, 'network', 'outputBias', hyperParameterDict, 'outputBias')
         parseEntry(cfg, 'network', 'arch', hyperParameterDict, 'arch')
 
-        parseEntry(cfg, 'basis', 'r', hyperParameterDict, 'basisFunctions')
-        parseEntry(cfg, 'basis', 'b', hyperParameterDict, 'basisTerms')
+        # parseEntry(cfg, 'basis', 'r', hyperParameterDict, 'basisFunctions')
+        # parseEntry(cfg, 'basis', 'b', hyperParameterDict, 'basisTerms')
 
         parseEntry(cfg, 'optimizer', 'lr', hyperParameterDict, 'initialLR')
         parseEntry(cfg, 'optimizer', 'finalLR', hyperParameterDict, 'finalLR')
         parseEntry(cfg, 'optimizer', 'lrStep', hyperParameterDict, 'lrStep')
         # parseEntry(cfg, 'optimizer', 'weight_decay', hyperParameterDict, 'weight_decay')
 
-        parseEntry(cfg, 'compute', 'cutlassBatchSize', hyperParameterDict, 'cutlassBatchSize')
+        # parseEntry(cfg, 'compute', 'cutlassBatchSize', hyperParameterDict, 'cutlassBatchSize')
         parseEntry(cfg, 'compute', 'device', hyperParameterDict, 'device')
 
         parseEntry(cfg, 'io', 'output', hyperParameterDict, 'output')
@@ -284,22 +319,34 @@ def parseConfig(config, hyperParameterDict):
         if 'additionalData' in cfg['dataset']:
             hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
 
-        if 'inputEncoder' in cfg:
-            hyperParameterDict['inputEncoder'] = cfg['inputEncoder']
-        else:
-            hyperParameterDict['inputEncoder'] = None
-        if 'outputDecoder' in cfg:
-            hyperParameterDict['outputDecoder'] = cfg['outputDecoder']
-        else:
-            hyperParameterDict['outputDecoder'] = None
-        if 'edgeMLP' in cfg:
-            hyperParameterDict['edgeMLP'] = cfg['edgeMLP']
-        else:
-            hyperParameterDict['edgeMLP'] = None
-        if 'vertexMLP' in cfg:
-            hyperParameterDict['vertexMLP'] = cfg['vertexMLP']
-        else:
-            hyperParameterDict['vertexMLP'] = None
+        dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer']
+        for d in dictList:
+            if d in cfg:
+                for key in cfg[d]:
+                    if key in hyperParameterDict[d]:
+                        hyperParameterDict[d][key] = cfg[d][key]
+                    else:
+                        if key != 'inputFeatures' and key != 'output':
+                            raise ValueError('Key %s not found in %s' % (key, d))
+
+        # if 'inputEncoder' in cfg:
+        #     hyperParameterDict['inputEncoder'] = cfg['inputEncoder']
+        # if 'outputDecoder' in cfg:
+        #     hyperParameterDict['outputDecoder'] = cfg['outputDecoder']
+        # if 'edgeMLP' in cfg:
+        #     hyperParameterDict['edgeMLP'] = cfg['edgeMLP']
+        # if 'vertexMLP' in cfg:
+        #     hyperParameterDict['vertexMLP'] = cfg['vertexMLP']
+        # if 'vertexMLP' in cfg:
+        #     hyperParameterDict['fcLayerMLP'] = cfg['fcLayerMLP']
+
+
+        parseEntry(cfg, 'mlp', 'inputEncoder', hyperParameterDict, 'inputEncoderActive')
+        parseEntry(cfg, 'mlp', 'outputDecoder', hyperParameterDict, 'outputDecoderActive')
+        parseEntry(cfg, 'mlp', 'edgeMLP', hyperParameterDict, 'edgeMLPActive')
+        parseEntry(cfg, 'mlp', 'vertexMLP', hyperParameterDict, 'vertexMLPActive')
+        parseEntry(cfg, 'mlp', 'fcLayer', hyperParameterDict, 'fcLayerMLPActive')
+
     return hyperParameterDict
 
 import datetime as datetime
@@ -378,11 +425,11 @@ def toPandaDict(hyperParameterDict):
     config = {
         'timestamp': hyperParameterDict['timestamp'],
 
-        'basisTerms': hyperParameterDict['basisTerms'],
-        'basisFunctions': hyperParameterDict['basisFunctions'],
+        'basisTerms': hyperParameterDict['convLayer']['basisTerms'],
+        'basisFunctions': hyperParameterDict['convLayer']['basisFunction'],
 
         'network': hyperParameterDict['network'],
-        'outputBias': hyperParameterDict['outputBias'],
+        # 'outputBias': hyperParameterDict['outputBias'],
         'activation': hyperParameterDict['activation'],
         'networkSeed': hyperParameterDict['networkSeed'],
         'arch': hyperParameterDict['arch'],
@@ -400,7 +447,7 @@ def toPandaDict(hyperParameterDict):
         'dataDistance': hyperParameterDict['dataDistance'],
         'adjustForFrameDistance': hyperParameterDict['adjustForFrameDistance'],
 
-        'initializer': hyperParameterDict['initializer'],
+        # 'initializer': hyperParameterDict['initializer'],
 
 
 
@@ -435,9 +482,9 @@ def toPandaDict(hyperParameterDict):
         'cutlassBatchSize': hyperParameterDict['cutlassBatchSize'],
         'li' : hyperParameterDict['liLoss'] if 'liLoss' in hyperParameterDict else None,
 
-        'normalized': hyperParameterDict['normalized'],
-        'optimizeWeights': hyperParameterDict['optimizeWeights'],
-        'exponentialDecay': hyperParameterDict['exponentialDecay'],
+        # 'normalized': hyperParameterDict['normalized'],
+        # 'optimizeWeights': hyperParameterDict['optimizeWeights'],
+        # 'exponentialDecay': hyperParameterDict['exponentialDecay'],
         'independent_dxdt': hyperParameterDict['independent_dxdt'],
         'unrollIncrement': hyperParameterDict['unrollIncrement'],
         'networkType': hyperParameterDict['networkType'],
@@ -447,56 +494,17 @@ def toPandaDict(hyperParameterDict):
         'dxdtLossScaling': hyperParameterDict['dxdtLossScaling'],
         'scaleShiftLoss': hyperParameterDict['scaleShiftLoss'] if 'scaleShiftLoss' in hyperParameterDict else False,
         'integrationScheme': hyperParameterDict['integrationScheme'],
-        'inputEncoder': True if hyperParameterDict['inputEncoder'] is not None else False,
-        'outputDecoder': True if hyperParameterDict['outputDecoder'] is not None else False,
-
-        'inputEncoder_activation': hyperParameterDict['inputEncoder']['activation'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_gain': hyperParameterDict['inputEncoder']['gain'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_norm': hyperParameterDict['inputEncoder']['norm'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_layout': hyperParameterDict['inputEncoder']['layout'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_output': hyperParameterDict['inputEncoder']['output'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_preNorm': hyperParameterDict['inputEncoder']['preNorm'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_postNorm': hyperParameterDict['inputEncoder']['postNorm'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_noLinear': hyperParameterDict['inputEncoder']['noLinear'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_channels': hyperParameterDict['inputEncoder']['channels'] if hyperParameterDict['inputEncoder'] is not None else None,
-        'inputEncoder_inputFeatures': hyperParameterDict['inputEncoder']['inputFeatures'] if hyperParameterDict['inputEncoder'] is not None else None,
-
-        'outputDecoder_activation': hyperParameterDict['outputDecoder']['activation'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_gain': hyperParameterDict['outputDecoder']['gain'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_norm': hyperParameterDict['outputDecoder']['norm'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_layout': hyperParameterDict['outputDecoder']['layout'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_output': hyperParameterDict['outputDecoder']['output'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_preNorm': hyperParameterDict['outputDecoder']['preNorm'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_postNorm': hyperParameterDict['outputDecoder']['postNorm'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_noLinear': hyperParameterDict['outputDecoder']['noLinear'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_channels': hyperParameterDict['outputDecoder']['channels'] if hyperParameterDict['outputDecoder'] is not None else None,
-        'outputDecoder_inputFeatures': hyperParameterDict['outputDecoder']['inputFeatures'] if hyperParameterDict['outputDecoder'] is not None else None,
-
-        'edgeMLP': True if hyperParameterDict['edgeMLP'] is not None else False,
-        'vertexMLP': True if hyperParameterDict['vertexMLP'] is not None else False,
-        'edgeMLP_activation': hyperParameterDict['edgeMLP']['activation'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_gain': hyperParameterDict['edgeMLP']['gain'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_norm': hyperParameterDict['edgeMLP']['norm'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_layout': hyperParameterDict['edgeMLP']['layout'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_output': hyperParameterDict['edgeMLP']['output'] if hyperParameterDict['edgeMLP'] and 'output'in hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_preNorm': hyperParameterDict['edgeMLP']['preNorm'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_postNorm': hyperParameterDict['edgeMLP']['postNorm'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_noLinear': hyperParameterDict['edgeMLP']['noLinear'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_channels': hyperParameterDict['edgeMLP']['channels'] if hyperParameterDict['edgeMLP'] is not None else None,
-        'edgeMLP_inputFeatures': hyperParameterDict['edgeMLP']['inputFeatures'] if hyperParameterDict['edgeMLP'] and 'inputFeatures'in hyperParameterDict['edgeMLP'] is not None else None,
-
-        'vertexMLP_activation': hyperParameterDict['vertexMLP']['activation'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_gain': hyperParameterDict['vertexMLP']['gain'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_norm': hyperParameterDict['vertexMLP']['norm'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_layout': hyperParameterDict['vertexMLP']['layout'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_output': hyperParameterDict['vertexMLP']['output'] if hyperParameterDict['vertexMLP'] and 'output'in hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_preNorm': hyperParameterDict['vertexMLP']['preNorm'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_postNorm': hyperParameterDict['vertexMLP']['postNorm'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_noLinear': hyperParameterDict['vertexMLP']['noLinear'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_channels': hyperParameterDict['vertexMLP']['channels'] if hyperParameterDict['vertexMLP'] is not None else None,
-        'vertexMLP_inputFeatures': hyperParameterDict['vertexMLP']['inputFeatures'] if hyperParameterDict['vertexMLP'] and 'inputFeatures'in hyperParameterDict['vertexMLP']  is not None else None,
-
+        'inputEncoderActive': hyperParameterDict['inputEncoderActive'],
+        'outputDecoderActive': hyperParameterDict['outputDecoderActive'],
+        'edgeMLPActive': hyperParameterDict['edgeMLPActive'],
+        'vertexMLPActive': hyperParameterDict['vertexMLPActive'],
+        'fcLayerMLPActive': hyperParameterDict['fcLayerMLPActive']
     }
+    dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer']
+    for d in dictList:
+        if d in hyperParameterDict:
+            for key in hyperParameterDict[d]:
+                config[d + '.' + key] = hyperParameterDict[d][key]
     # for k in list(config.keys()):
         # print(k, type(config[k]), config[k])
 
@@ -560,31 +568,31 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     hyperParameterDict['groundTruthCount'] = groundTruthCount
     hyperParameterDict['dimension'] = currentState['fluid']['positions'].shape[1]
 
-    hyperParameterDict['rbfs'] = hyperParameterDict['basisFunctions'].split(' ') if isinstance(hyperParameterDict['basisFunctions'], str) else hyperParameterDict['basisFunctions']
-    if len(hyperParameterDict['rbfs']) == 1:
-        hyperParameterDict['rbfs'] = hyperParameterDict['rbfs'] * hyperParameterDict['dimension']
-    elif len(hyperParameterDict['rbfs']) != hyperParameterDict['dimension']:
-        raise ValueError('Number of basis functions must match the dimensionality of the problem or be 1')
+    # hyperParameterDict['rbfs'] = hyperParameterDict['convLayer']['basisFunction'].split(' ') if isinstance(hyperParameterDict['basisFunctions'], str) else hyperParameterDict['basisFunctions']
+    # if len(hyperParameterDict['rbfs']) == 1:
+    #     hyperParameterDict['rbfs'] = hyperParameterDict['rbfs'] * hyperParameterDict['dimension']
+    # elif len(hyperParameterDict['rbfs']) != hyperParameterDict['dimension']:
+    #     raise ValueError('Number of basis functions must match the dimensionality of the problem or be 1')
     
-    hyperParameterDict['rbfs'] = [s.replace('_', ' ') for s in hyperParameterDict['rbfs']]
+    # hyperParameterDict['rbfs'] = [s.replace('_', ' ') for s in hyperParameterDict['rbfs']]
 
-    hyperParameterDict['dims'] = hyperParameterDict['basisTerms'].split(' ') if isinstance(hyperParameterDict['basisTerms'], str) else (hyperParameterDict['basisTerms'] if isinstance(hyperParameterDict['basisTerms'], list) else [hyperParameterDict['basisTerms']])
-    if len(hyperParameterDict['dims']) == 1:
-        hyperParameterDict['dims'] = hyperParameterDict['dims'] * hyperParameterDict['dimension']
-    elif len(hyperParameterDict['dims']) != hyperParameterDict['dimension']:
-        raise ValueError('Number of basis terms must match the dimensionality of the problem or be 1')
+    # hyperParameterDict['dims'] = hyperParameterDict['basisTerms'].split(' ') if isinstance(hyperParameterDict['basisTerms'], str) else (hyperParameterDict['basisTerms'] if isinstance(hyperParameterDict['basisTerms'], list) else [hyperParameterDict['basisTerms']])
+    # if len(hyperParameterDict['dims']) == 1:
+    #     hyperParameterDict['dims'] = hyperParameterDict['dims'] * hyperParameterDict['dimension']
+    # elif len(hyperParameterDict['dims']) != hyperParameterDict['dimension']:
+    #     raise ValueError('Number of basis terms must match the dimensionality of the problem or be 1')
 
-    hyperParameterDict['dims'] = [int(d) for d in hyperParameterDict['dims']]
+    # hyperParameterDict['dims'] = [int(d) for d in hyperParameterDict['dims']]
 
-    if hyperParameterDict['dimension'] >= 1:
-        hyperParameterDict['n'] = hyperParameterDict['dims'][0]
-        hyperParameterDict['rbf_x'] = hyperParameterDict['rbfs'][0]
-    if hyperParameterDict['dimension'] >= 2:    
-        hyperParameterDict['m'] = hyperParameterDict['dims'][1]
-        hyperParameterDict['rbf_y'] = hyperParameterDict['rbfs'][1]
-    if hyperParameterDict['dimension'] >= 3:
-        hyperParameterDict['l'] = hyperParameterDict['dims'][2]
-        hyperParameterDict['rbf_z'] = hyperParameterDict['rbfs'][2]
+    # if hyperParameterDict['dimension'] >= 1:
+    #     hyperParameterDict['n'] = hyperParameterDict['dims'][0]
+    #     hyperParameterDict['rbf_x'] = hyperParameterDict['rbfs'][0]
+    # if hyperParameterDict['dimension'] >= 2:    
+    #     hyperParameterDict['m'] = hyperParameterDict['dims'][1]
+    #     hyperParameterDict['rbf_y'] = hyperParameterDict['rbfs'][1]
+    # if hyperParameterDict['dimension'] >= 3:
+    #     hyperParameterDict['l'] = hyperParameterDict['dims'][2]
+    #     hyperParameterDict['rbf_z'] = hyperParameterDict['rbfs'][2]
 
 
     hyperParameterDict['arch'] =  hyperParameterDict['arch'] + ' ' + str(groundTruthCount)
@@ -602,11 +610,11 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     hyperParameterDict['widths'] = hyperParameterDict['arch'].strip().split(' ')
     hyperParameterDict['layers'] = [int(s) for s in hyperParameterDict['widths']]
 
-    hyperParameterDict['mlpLabel'] = f'[{"V" if hyperParameterDict["vertexMLP"] is not None else " "}{"E" if hyperParameterDict["edgeMLP"] is not None else " "}{"I" if hyperParameterDict["inputEncoder"] is not None else " "}{"O" if hyperParameterDict["outputDecoder"] is not None else " "}]'
+    hyperParameterDict['mlpLabel'] = f'[{"V" if hyperParameterDict["vertexMLPActive"] else " "}{"E" if hyperParameterDict["edgeMLPActive"] else " "}{"I" if hyperParameterDict["inputEncoderActive"] else " "}{"O" if hyperParameterDict["outputDecoderActive"] else " "}]'
 
-    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]} {hyperParameterDict["mlpLabel"]}'
+    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]} {hyperParameterDict["mlpLabel"]}'
 
-    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["basisFunctions"]:8s}] x [{hyperParameterDict["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s} {hyperParameterDict["mlpLabel"]}'
+    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s} {hyperParameterDict["mlpLabel"]}'
 
     hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
 

@@ -47,8 +47,8 @@ parser.add_argument('--numNeighbors', type=float, default=argparse.SUPPRESS, hel
 
 parser.add_argument('--groundTruth', type=str, default=argparse.SUPPRESS, help='Targets [default = "compute_density"]')
 parser.add_argument('--gtMode', type=str, default=argparse.SUPPRESS, help='Ground Truth mode [default = "abs"]')
-parser.add_argument('--outputBias', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Output bias [default = False]')
-parser.add_argument('--optimizedWeights', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Optimized weights [default = False]')
+parser.add_argument('--biasActive', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Output bias [default = False]')
+parser.add_argument('--optimizeWeights', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Optimized weights [default = False]')
 parser.add_argument('--exponentialDecay', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Exponential decay [default = True]')
 parser.add_argument('--initializer', type = str, default = argparse.SUPPRESS, help='Initializer [default = "uniform"]')
 parser.add_argument('--loss', type = str, default = argparse.SUPPRESS, help='Loss function [default = "mse"]')
@@ -61,6 +61,8 @@ parser.add_argument('--inputEncoder', type = bool, default = argparse.SUPPRESS, 
 parser.add_argument('--outputDecoder', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Input encoder [default = False]')
 parser.add_argument('--edgeMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Edge MLP [default = False]')
 parser.add_argument('--vertexMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Vertex MLP [default = False]')
+parser.add_argument('--fcLayer', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Vertex MLP [default = False]')
+
 
 parser.add_argument('--independent_dxdt', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='dxdt predicts velocity as well')
 parser.add_argument('--networkType', type = str, default = argparse.SUPPRESS, help='Shifting the loop')

@@ -4,6 +4,7 @@ from torch.optim import Adam
 import torch
 
 from BasisConvolution.convNetv2 import BasisNetwork
+from BasisConvolution.convNetv3 import GraphNetwork
 from BasisConvolution.detail.windows import getWindowFunction
 from BasisConvolution.detail.util import count_parameters
 

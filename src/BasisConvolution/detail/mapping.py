@@ -92,3 +92,44 @@ def mapToSpherePreserving(positions):
     cylinderPositions = ballToCylinder(positions)
     cubePositions = cylinderToCube(cylinderPositions)
     return cubePositions
+
+import numpy as np
+def process(edge_index_i, edge_index_j, edge_attr, centerIgnore = True, coordinateMapping = 'cartesian', windowFn = None):
+    if centerIgnore:
+        nequals = edge_index_i != edge_index_j
+
+    i, ni = torch.unique(edge_index_i, return_counts = True)
+    
+    if centerIgnore:
+        fluidEdgeIndex = torch.stack([edge_index_i[nequals], edge_index_j[nequals]], dim = 0)
+    else:
+        fluidEdgeIndex = torch.stack([edge_index_i, edge_index_j], dim = 0)
+        
+    if centerIgnore:
+        fluidEdgeLengths = edge_attr[nequals]
+    else:
+        fluidEdgeLengths = edge_attr
+    fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
+    
+    if not(windowFn is None):
+        edge_weights = windowFn(torch.linalg.norm(fluidEdgeLengths, axis = 1))
+    else:
+        edge_weights = None
+
+    mapped = fluidEdgeLengths
+
+    # positions = torch.hstack((edge_attr, torch.zeros(edge_attr.shape[0],1, device = edge_attr.device, dtype = edge_attr.dtype)))
+    if fluidEdgeLengths.shape[1] > 1:
+        expanded = torch.hstack((fluidEdgeLengths, torch.zeros_like(fluidEdgeLengths[:,0])[:,None])) if edge_attr.shape[1] == 2 else fluidEdgeLengths
+        if coordinateMapping == 'polar':
+            spherical = mapToSpherical(expanded)
+            if fluidEdgeLengths.shape[1] == 2:
+                mapped = torch.vstack((spherical[:,0] * 2. - 1.,spherical[:,1] / np.pi)).mT
+            else:
+                mapped = torch.vstack((spherical[:,0] * 2. - 1.,spherical[:,1] / np.pi,spherical[:,2] / np.pi)).mT
+        if coordinateMapping == 'cartesian':
+            mapped = fluidEdgeLengths
+        if coordinateMapping == 'preserving':
+            cubePositions = mapToSpherePreserving(expanded)
+            mapped = cubePositions
+    return ni, i, fluidEdgeIndex, mapped, edge_weights
