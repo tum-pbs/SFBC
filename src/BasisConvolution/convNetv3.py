@@ -433,7 +433,8 @@ class GraphNetwork(torch.nn.Module):
                         ans_ = torch.hstack((ansConv, ansDense))
                     else:
                         ans_ = ansConv
-            print(f'Layer[{i}]:\tans: {ans.shape if self.agglomerateViaMLP == False else ans_.shape}')
+            if verbose: 
+                print(f'Layer[{i}]:\tans: {ans.shape if self.agglomerateViaMLP == False else ans_.shape}')
 
             if self.edgeMLPProperties is not None and i < layers - 1:
                 if verbose:

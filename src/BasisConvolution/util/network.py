@@ -7,7 +7,7 @@ from BasisConvolution.convNetv2 import BasisNetwork
 from BasisConvolution.convNetv3 import GraphNetwork
 from BasisConvolution.detail.windows import getWindowFunction
 from BasisConvolution.detail.util import count_parameters
-
+import copy
 
 def buildModel(hyperParameterDict, verbose = False):
 
@@ -17,22 +17,23 @@ def buildModel(hyperParameterDict, verbose = False):
     coordinateMapping = hyperParameterDict['coordinateMapping']
     windowFunction = getWindowFunction(hyperParameterDict['windowFunction'])
 
-    rbfs = hyperParameterDict['rbfs']
-    dims = hyperParameterDict['dims']
+    # rbfs = hyperParameterDict['rbfs']
+    # dims = hyperParameterDict['dims']
 
-    cutlassBatchSize = hyperParameterDict['cutlassBatchSize']
-    normalized = hyperParameterDict['normalized']
-    outputBias = hyperParameterDict['outputBias']
-    initializer = hyperParameterDict['initializer']
-    optimizeWeights = hyperParameterDict['optimizeWeights']
-    exponentialDecay = hyperParameterDict['exponentialDecay']
-    inputEncoder = hyperParameterDict['inputEncoder'] if 'inputEncoder' in hyperParameterDict else None
-    outputDecoder = hyperParameterDict['outputDecoder'] if 'outputDecoder' in hyperParameterDict else None
-    edgeMLP = hyperParameterDict['edgeMLP'] if 'edgeMLP' in hyperParameterDict else None
-    vertexMLP = hyperParameterDict['vertexMLP'] if 'vertexMLP' in hyperParameterDict else None
-    fcMLP = hyperParameterDict['fcLayerMLP'] if 'fcLayerMLP' in hyperParameterDict else None
-    aggloMLP = hyperParameterDict['agglomerateViaMLP'] if 'agglomerateViaMLP' in hyperParameterDict else False
-    activation = hyperParameterDict['activation'] if 'activation' in hyperParameterDict else 'relu'
+    outputDecoder = hyperParameterDict['outputDecoder'] if hyperParameterDict['outputDecoderActive'] else None
+    inputEncoder = hyperParameterDict['inputEncoder'] if hyperParameterDict['inputEncoderActive'] else None
+    vertexMLP = hyperParameterDict['vertexMLP'] if hyperParameterDict['vertexMLPActive'] else None
+    edgeMLP = hyperParameterDict['edgeMLP'] if hyperParameterDict['edgeMLPActive'] else None
+    fcMLP = hyperParameterDict['fcLayerMLP'] if hyperParameterDict['fcLayerMLPActive'] else None
+    convLayerDict = hyperParameterDict['convLayer']
+    # convLayerDict['mode'] = 'conv'
+    # convLayerDict['vertexMode'] = 'i, j, sum, diff'
+
+    fluidFeatureCount = hyperParameterDict['fluidFeatureCount']
+    boundaryFeaturecount = hyperParameterDict['boundaryFeatureCount']
+    layers = hyperParameterDict['layers']
+    coordinateMapping = hyperParameterDict['coordinateMapping']
+    windowFunction = getWindowFunction(hyperParameterDict['windowFunction'])
 
     if verbose:
         print(f'fluidFeatureCount: {fluidFeatureCount}')
@@ -40,25 +41,24 @@ def buildModel(hyperParameterDict, verbose = False):
         print(f'layers: {layers}')
         print(f'coordinateMapping: {coordinateMapping}')
         print(f'windowFunction: {windowFunction}')
-        print(f'activation: {activation}')
+        # print(f'activation: {activation}')
 
-        print(f'rbfs: {rbfs}')
-        print(f'dims: {dims}')
+        # print(f'rbfs: {rbfs}')
+        # print(f'dims: {dims}')
 
-        print(f'cutlassBatchSize: {cutlassBatchSize}')
-        print(f'normalized: {normalized}')
-        print(f'outputBias: {outputBias}')
-        print(f'initializer: {initializer}')
-        print(f'optimizeWeights: {optimizeWeights}')
-        print(f'exponentialDecay: {exponentialDecay}')
         print(f'inputEncoder: {inputEncoder}')
         print(f'outputDecoder: {outputDecoder}')
         print(f'edgeMLP: {edgeMLP}')
         print(f'vertexMLP: {vertexMLP}')
         print(f'fcMLP: {fcMLP}')
-        print(f'aggloMLP: {aggloMLP}')
+        print(f'convLayer: {convLayerDict}')
+    model = GraphNetwork(
+        fluidFeatures = fluidFeatureCount, boundaryFeatures = boundaryFeaturecount, dim = hyperParameterDict['dimension'], layers = hyperParameterDict['layers'], activation = hyperParameterDict['activation'],
+        coordinateMapping=coordinateMapping, windowFn = windowFunction, 
 
-    model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
+        vertexMLP = vertexMLP, edgeMLP = edgeMLP, outputDecoder = outputDecoder, inputEncoder = inputEncoder, fcLayerMLP = fcMLP, convLayer = convLayerDict, verbose = False
+    )
+    # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 
     model = model.to(hyperParameterDict['device'])
 
