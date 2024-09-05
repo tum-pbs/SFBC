@@ -149,14 +149,14 @@ class BasisConvLayer(torch.nn.Module):
         exponentialDecay = False,
         mlpProperties = {
             'activation': 'celu',
-            'gain': 1,
+            'gain': 4,
             'norm': True,
             'preNorm': False,
-            'postNorm': False,
+            'postNorm': True,
             'noLinear': False,
-            'bias': False,
-            'groups': [8,8],
-            'layout': [32,32],
+            'bias': True,
+            'groups': [16,32,-1],
+            'layout': [96,96],
         },
         **kwargs
     ):

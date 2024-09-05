@@ -65,7 +65,21 @@ def buildModel(hyperParameterDict, verbose = False):
     parameterCount = count_parameters(model)
     hyperParameterDict['parameterCount'] = parameterCount
 
-
+    chosenOptimizer = hyperParameterDict['optimizer']
+    if chosenOptimizer == 'adam':
+        optimizer = Adam(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    elif chosenOptimizer == 'sgd':
+        optimizer = torch.optim.SGD(model.parameters(), lr=hyperParameterDict['initialLR'], momentum = hyperParameterDict['momentum'], weight_decay = hyperParameterDict['weight_decay'])
+    elif chosenOptimizer == 'rmsprop':
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    elif chosenOptimizer == 'adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    elif chosenOptimizer == 'adadelta':
+        optimizer = torch.optim.Adadelta(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    elif chosenOptimizer == 'adamw':
+        optimizer = torch.optim.AdamW(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    else:
+        raise ValueError(f'Optimizer {chosenOptimizer} not supported')
     optimizer = Adam(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
     # model = model.to(device)
 

@@ -62,9 +62,11 @@ from BasisConvolution.util.testcases import loadFrame
 from BasisConvolution.util.features import getFeatures
 from BasisConvolution.util.radius import searchNeighbors
 
-def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False):
-    if unrollLength > hyperParameterDict['maxUnroll']:
+def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
+    if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
+        print('Unroll length ', unrolLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
         unrollLength = hyperParameterDict['maxUnroll']
+        # print('Unroll length exceeds maximum, limiting to', unrollLength)
     config, attributes, currentState, priorState, trajectoryStates = loadFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength)
     # print(currentState)
     # print(priorState)
@@ -115,8 +117,9 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     return config, attributes, augmentedStates[0], augmentedStates[1] if priorState is not None else None, augmentedStates[2:] if priorState is not None else augmentedStates[1:]
 
 
-def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False):
-    if unrollLength > hyperParameterDict['maxUnroll']:
+def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
+    if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
+        print('Unroll length ', unrolLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"], '[batch]')
         unrollLength = hyperParameterDict['maxUnroll']
-    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly) for index in bdata]
+    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly, limitUnroll=limitUnroll) for index in bdata]
     return [data[0] for data in data], [data[1] for data in data], [data[2] for data in data], [data[3] for data in data], [data[4] for data in data]

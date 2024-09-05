@@ -63,6 +63,9 @@ def defaultHyperParameters():
         'device': 'cpu',
         'dtype': torch.float32,
 
+        'optimizer': 'adam',
+        'momentum': 0.9,
+
         'inputEncoderActive': False,
         'outputDecoderActive': False,
         'edgeMLPActive': False,
@@ -172,6 +175,9 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['jitterAmount'] =  args.jitterAmount if hasattr(args, 'jitterAmount') else hyperParameterDict['jitterAmount']
     hyperParameterDict['networkSeed'] =  args.networkseed if hasattr(args, 'networkseed') else hyperParameterDict['networkSeed']
     hyperParameterDict['network'] = args.network if hasattr(args, 'network') else hyperParameterDict['network']
+
+    hyperParameterDict['optimizer'] = args.optimizer if hasattr(args, 'optimizer') else hyperParameterDict['optimizer']
+    hyperParameterDict['momentum'] = args.momentum if hasattr(args, 'momentum') else hyperParameterDict['momentum']
     
     hyperParameterDict['adjustForFrameDistance'] = args.adjustForFrameDistance if hasattr(args, 'adjustForFrameDistance') else hyperParameterDict['adjustForFrameDistance']
 
@@ -276,6 +282,8 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'optimizer', 'lr', hyperParameterDict, 'initialLR')
         parseEntry(cfg, 'optimizer', 'finalLR', hyperParameterDict, 'finalLR')
         parseEntry(cfg, 'optimizer', 'lrStep', hyperParameterDict, 'lrStep')
+        parseEntry(cfg, 'optimizer', 'momentum', hyperParameterDict, 'momentum')
+        parseEntry(cfg, 'optimizer', 'optimizer', hyperParameterDict, 'optimizer')
         # parseEntry(cfg, 'optimizer', 'weight_decay', hyperParameterDict, 'weight_decay')
 
         # parseEntry(cfg, 'compute', 'cutlassBatchSize', hyperParameterDict, 'cutlassBatchSize')
@@ -530,7 +538,7 @@ from BasisConvolution.util.augment import loadAugmentedFrame
 from datetime import datetime
 
 def finalizeHyperParameters(hyperParameterDict, dataset):
-    config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(0, dataset, hyperParameterDict)
+    config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(0, dataset, hyperParameterDict, unrollLength=1)
     hyperParameterDict['trainingFiles'] = ' '.join(dataset.fileNames)
     boundaryFeatureCount = 0
     if hyperParameterDict['boundary']:
