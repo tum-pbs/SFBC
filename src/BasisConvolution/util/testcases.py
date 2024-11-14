@@ -439,8 +439,19 @@ def parseSPHConfig(inFile, device, dtype):
     
     return config
 
-def loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
-    
+def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    if staticFluidData is not None and int(key) == 0 or inGrp is None:
+        state = {
+            'fluid': staticFluidData,
+            'boundary': staticBoundaryData,
+            'time': 0.0,
+            'dt': inFile['config']['timestep'].attrs['dt'],
+            'timestep': 0,
+        }
+        loadAdditional(inGrp, state['fluid'], additionalData, device, dtype)
+        return state
+
+
     if 'boundaryInformation' in inFile:
         dynamicBoundaryData = {}
         for k in staticBoundaryData.keys():
@@ -448,27 +459,79 @@ def loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileDa
                 dynamicBoundaryData[k] = staticBoundaryData[k].clone()
             else:
                 dynamicBoundaryData[k] = staticBoundaryData[k]
+        dynamicBoundaryData['positions'] = torch.from_numpy(inGrp['boundaryPosition'][:]).to(device = device, dtype = dtype) if 'boundaryPosition' in inGrp else dynamicBoundaryData['positions']
+        dynamicBoundaryData['normals'] = torch.from_numpy(inGrp['boundaryNormals'][:]).to(device = device, dtype = dtype) if 'boundaryNormals' in inGrp else dynamicBoundaryData['normals']
+        dynamicBoundaryData['areas'] = torch.from_numpy(inGrp['boundaryArea'][:]).to(device = device, dtype = dtype) if 'boundaryArea' in inGrp else dynamicBoundaryData['areas']
+        dynamicBoundaryData['velocities'] = torch.from_numpy(inGrp['boundaryVelocity'][:]).to(device = device, dtype = dtype) if 'boundaryVelocity' in inGrp else dynamicBoundaryData['velocities']
+        dynamicBoundaryData['densities'] = torch.from_numpy(inGrp['boundaryDensity'][:]).to(device = device, dtype = dtype) if 'boundaryDensity' in inGrp else dynamicBoundaryData['densities']
+        dynamicBoundaryData['supports'] = torch.from_numpy(inGrp['boundarySupport'][:]).to(device = device, dtype = dtype) if 'boundarySupport' in inGrp else dynamicBoundaryData['supports']
+        dynamicBoundaryData['bodyIDs'] = torch.from_numpy(inGrp['boundaryBodyAssociation'][:]).to(device = device, dtype = torch.int64) if 'boundaryBodyAssociation' in inGrp else dynamicBoundaryData['bodyIDs']
+    elif 'initial' in inFile:
+        dynamicBoundaryData = {} if staticBoundaryData is not None else None
+        if staticBoundaryData is not None:
+            for k in staticBoundaryData.keys():
+                if isinstance(staticBoundaryData[k], torch.Tensor):
+                    dynamicBoundaryData[k] = staticBoundaryData[k].clone()
+                else:
+                    dynamicBoundaryData[k] = staticBoundaryData[k]
+
+        if 'boundaryDensity' in inGrp:
+            dynamicBoundaryData['densities'] = torch.from_numpy(inGrp['boundaryDensity'][:]).to(device = device, dtype = dtype)
+        if 'boundaryVelocity' in inGrp:
+            dynamicBoundaryData['velocities'] = torch.from_numpy(inGrp['boundaryVelocity'][:]).to(device = device, dtype = dtype)
+        if 'boundaryPosition' in inGrp:
+            dynamicBoundaryData['positions'] = torch.from_numpy(inGrp['boundaryPosition'][:]).to(device = device, dtype = dtype)
+        if 'boundaryNormals' in inGrp:
+            dynamicBoundaryData['normals'] = torch.from_numpy(inGrp['boundaryNormals'][:]).to(device = device, dtype = dtype)
     else:
         dynamicBoundaryData = None
+    if 'boundaryDensity' in inGrp:
+        dynamicBoundaryData['densities'] = torch.from_numpy(inGrp['boundaryDensity'][:]).to(device = device, dtype = dtype)
+    if 'boundaryVelocity' in inGrp:
+        dynamicBoundaryData['velocities'] = torch.from_numpy(inGrp['boundaryVelocity'][:]).to(device = device, dtype = dtype)
+    if 'boundaryPosition' in inGrp:
+        dynamicBoundaryData['positions'] = torch.from_numpy(inGrp['boundaryPosition'][:]).to(device = device, dtype = dtype)
+    if 'boundaryNormals' in inGrp:
+        dynamicBoundaryData['normals'] = torch.from_numpy(inGrp['boundaryNormals'][:]).to(device = device, dtype = dtype)
+
+
+    fluidState = {}
+
+    if staticFluidData is not None:
+        for k in staticFluidData.keys():
+            if isinstance(staticFluidData[k], torch.Tensor):
+                fluidState[k] = staticFluidData[k].clone()
+            else:
+                fluidState[k] = staticFluidData[k]
+    
+    if 'fluidPosition' in inGrp:
+        fluidState['positions'] = torch.from_numpy(inGrp['fluidPosition'][:]).to(device = device, dtype = dtype)
+    if 'fluidVelocity' in inGrp:
+        fluidState['velocities'] = torch.from_numpy(inGrp['fluidVelocity'][:]).to(device = device, dtype = dtype)
+    if 'fluidDensity' in inGrp:
+        fluidState['densities'] = torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype)
+    if 'fluidGravity' in inGrp:
+        fluidState['gravityAcceleration'] = torch.from_numpy(inGrp['fluidGravity'][:]).to(device = device, dtype = dtype)
+    
+    support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['area'], hyperParameterDict['numNeighbors'], 2)
+    rho = fluidState['densities']
+    areas = torch.ones_like(rho) * inFile.attrs['area']
+
+    fluidState['densities'] = rho * inFile.attrs['restDensity']
+    fluidState['areas'] = areas
+    fluidState['masses'] = areas * inFile.attrs['restDensity']
+    fluidState['supports'] = torch.ones_like(rho) * support
+    fluidState['indices'] = torch.from_numpy(inGrp['UID'][:]).to(device = device, dtype = torch.int64)
+    fluidState['numParticles'] = len(rho)
 
     # for k in inGrp.keys():
         # print(k, inGrp[k])
 
-    support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['area'], hyperParameterDict['numNeighbors'], 2)
-    rho = torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype)
-    areas = torch.ones_like(rho) * inFile.attrs['area']
+    # support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['area'], hyperParameterDict['numNeighbors'], 2)
+    # rho = torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype)
+    # areas = torch.ones_like(rho) * inFile.attrs['area']
     state = {
-        'fluid': {
-            'positions': torch.from_numpy(inGrp['fluidPosition'][:]).to(device = device, dtype = dtype),
-            'velocities': torch.from_numpy(inGrp['fluidVelocity'][:]).to(device = device, dtype = dtype),
-            'gravityAcceleration': torch.from_numpy(inGrp['fluidGravity'][:]).to(device = device, dtype = dtype) if 'fluidGravity' not in inFile.attrs else torch.from_numpy(inFile.attrs['fluidGravity']).to(device = device, dtype = dtype) * torch.ones(inGrp['fluidDensity'][:].shape[0]).to(device = device, dtype = dtype)[:,None],
-            'densities': rho * inFile.attrs['restDensity'],
-            'areas': areas,
-            'masses': areas * inFile.attrs['restDensity'],
-            'supports': torch.ones_like(rho) * support,
-            'indices': torch.from_numpy(inGrp['UID'][:]).to(device = device, dtype = torch.int64),
-            'numParticles': len(rho)
-        },
+        'fluid': fluidState,
         'boundary': dynamicBoundaryData if dynamicBoundaryData is not None else staticBoundaryData,
         'time': inGrp.attrs['time'],
         'dt': inGrp.attrs['dt'],
@@ -483,26 +546,65 @@ def loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileDa
 def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
     # print(key)
 
-    inGrp = inFile['simulationExport'][key]
+    if 'initial' in inFile:
+        targetNeighbors = inFile.attrs['targetNeighbors']
 
-    # print(inFile.attrs.keys())
-    # for k in inFile.attrs.keys():
-        # print(k, inFile.attrs[k])
+        staticFluidData = {
+            'positions': torch.from_numpy(inFile['initial']['fluid']['positions'][:]).to(device = device, dtype = dtype),
+            'velocities': torch.from_numpy(inFile['initial']['fluid']['velocities'][:]).to(device = device, dtype = dtype),
+            'gravityAcceleration': torch.zeros_like(torch.from_numpy(inFile['initial']['fluid']['velocities'][:]).to(device = device, dtype = dtype)),
+            'densities': torch.from_numpy(inFile['initial']['fluid']['densities'][:]).to(device = device, dtype = dtype),
+            'areas': torch.from_numpy(inFile['initial']['fluid']['areas'][:]).to(device = device, dtype = dtype),
+            'masses': torch.from_numpy(inFile['initial']['fluid']['masses'][:]).to(device = device, dtype = dtype),
+            'supports': computeSupport(torch.from_numpy(inFile['initial']['fluid']['areas'][:]).to(device = device, dtype = dtype), targetNeighbors, 2),
+            'indices': torch.from_numpy(inFile['initial']['fluid']['UID'][:]).to(device = device, dtype = torch.int32),
+            'numParticles': len(inFile['initial']['fluid']['positions'][:]),                                  
+        }
 
-    config = parseSPHConfig(inFile, device, dtype)
-    area = inFile.attrs['radius'] **2 if 'area' not in inFile.attrs else inFile.attrs['area']
-    support = np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support']
-    if hyperParameterDict['numNeighbors'] > 0:
-        support = computeSupport(area, hyperParameterDict['numNeighbors'], 2)
-    attributes = {
-        'support': support,
-        'targetNeighbors': inFile.attrs['targetNeighbors'],
-        'restDensity': inFile.attrs['restDensity'],
-        'dt': inGrp.attrs['dt'],
-        'time': inGrp.attrs['time'],
-        'radius': inFile.attrs['radius'] if 'radius' in inFile.attrs else inGrp.attrs['radius'],
-        'area': area,
-    }
+        config = parseSPHConfig(inFile, device, dtype)
+        area = inFile.attrs['radius'] **2 if 'area' not in inFile.attrs else inFile.attrs['area']
+        support = np.max(staticFluidData['supports'].detach().cpu().numpy()) if 'support' not in inFile.attrs else inFile.attrs['support']
+        if hyperParameterDict['numNeighbors'] > 0:
+            support = computeSupport(area, hyperParameterDict['numNeighbors'], 2)
+        attributes = {
+            'support': support,
+            'targetNeighbors': inFile.attrs['targetNeighbors'],
+            'restDensity': inFile.attrs['restDensity'],
+            'dt': config['timestep']['dt'],
+            'time': 0.0,
+            'radius': inFile.attrs['radius'],
+            'area': area,
+        }
+        if key == '00000':
+            inGrp = None
+        else:
+            inGrp = inFile['simulationExport'][key] 
+
+    else:
+        staticFluidData = None
+        inGrp = inFile['simulationExport'][key]
+
+        # print(inFile.attrs.keys())
+        # for k in inFile.attrs.keys():
+            # print(k, inFile.attrs[k])
+
+        config = parseSPHConfig(inFile, device, dtype)
+        area = inFile.attrs['radius'] **2 if 'area' not in inFile.attrs else inFile.attrs['area']
+        support = np.max(inGrp['fluidSupport'][:]) if 'support' not in inFile.attrs else inFile.attrs['support']
+        if hyperParameterDict['numNeighbors'] > 0:
+            support = computeSupport(area, hyperParameterDict['numNeighbors'], 2)
+        attributes = {
+            'support': support,
+            'targetNeighbors': inFile.attrs['targetNeighbors'],
+            'restDensity': inFile.attrs['restDensity'],
+            'dt': inGrp.attrs['dt'],
+            'time': inGrp.attrs['time'],
+            'radius': inFile.attrs['radius'] if 'radius' in inFile.attrs else inGrp.attrs['radius'],
+            'area': area,
+        }
+
+
+
     if 'boundaryInformation' in inFile:
         staticBoundaryData = {
                 'indices': torch.arange(0, inFile['boundaryInformation']['boundaryPosition'].shape[0], device = device, dtype = torch.int64),
@@ -516,28 +618,37 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
                 'bodyIDs': torch.from_numpy(inFile['boundaryInformation']['boundaryBodyAssociation'][:]).to(device = device, dtype = torch.int64),
                 'numParticles': len(inFile['boundaryInformation']['boundaryPosition'][:]),
             } if 'boundaryInformation' in inFile else None
+    elif 'initial' in inFile:
+        staticBoundaryData = {
+            'indices': torch.from_numpy(inFile['initial']['boundary']['UID'][:]).to(device = device, dtype = torch.int64),
+            'positions': torch.from_numpy(inFile['initial']['boundary']['positions'][:]).to(device = device, dtype = dtype),
+            'normals': torch.from_numpy(inFile['initial']['boundary']['normals'][:]).to(device = device, dtype = dtype),
+            'distances': torch.from_numpy(inFile['initial']['boundary']['distances'][:]).to(device = device, dtype = dtype),
+            'areas': torch.from_numpy(inFile['initial']['boundary']['areas'][:]).to(device = device, dtype = dtype),
+            'masses': torch.from_numpy(inFile['initial']['boundary']['masses'][:]).to(device = device, dtype = dtype),
+            'velocities': torch.from_numpy(inFile['initial']['boundary']['velocities'][:]).to(device = device, dtype = dtype),
+            'densities': torch.from_numpy(inFile['initial']['boundary']['densities'][:]).to(device = device, dtype = dtype),
+            'supports': computeSupport(torch.from_numpy(inFile['initial']['boundary']['areas'][:]).to(device = device, dtype = dtype), inFile.attrs['targetNeighbors'], 2),
+            'bodyIDs': torch.from_numpy(inFile['initial']['boundary']['bodyIDs'][:]).to(device = device, dtype = torch.int64),
+            'numParticles': len(inFile['initial']['boundary']['UID'][:]),
+
+        } if 'boundary' in inFile['initial'] else None
     else:
         staticBoundaryData = None
 
-    if 'boundaryInformation' in inFile:
-        dynamicBoundaryData = {}
-        for k in staticBoundaryData.keys():
-            if isinstance(staticBoundaryData[k], torch.Tensor):
-                dynamicBoundaryData[k] = staticBoundaryData[k].clone()
-            else:
-                dynamicBoundaryData[k] = staticBoundaryData[k]
+    # if 'boundaryInformation' in inFile:
+    #     dynamicBoundaryData = {}
+    #     for k in staticBoundaryData.keys():
+    #         if isinstance(staticBoundaryData[k], torch.Tensor):
+    #             dynamicBoundaryData[k] = staticBoundaryData[k].clone()
+    #         else:
+    #             dynamicBoundaryData[k] = staticBoundaryData[k]
 
-        dynamicBoundaryData['positions'] = torch.from_numpy(inGrp['boundaryPosition'][:]).to(device = device, dtype = dtype) if 'boundaryPosition' in inGrp else dynamicBoundaryData['positions']
-        dynamicBoundaryData['normals'] = torch.from_numpy(inGrp['boundaryNormals'][:]).to(device = device, dtype = dtype) if 'boundaryNormals' in inGrp else dynamicBoundaryData['normals']
-        dynamicBoundaryData['areas'] = torch.from_numpy(inGrp['boundaryArea'][:]).to(device = device, dtype = dtype) if 'boundaryArea' in inGrp else dynamicBoundaryData['areas']
-        dynamicBoundaryData['velocities'] = torch.from_numpy(inGrp['boundaryVelocity'][:]).to(device = device, dtype = dtype) if 'boundaryVelocity' in inGrp else dynamicBoundaryData['velocities']
-        dynamicBoundaryData['densities'] = torch.from_numpy(inGrp['boundaryDensity'][:]).to(device = device, dtype = dtype) if 'boundaryDensity' in inGrp else dynamicBoundaryData['densities']
-        dynamicBoundaryData['supports'] = torch.from_numpy(inGrp['boundarySupport'][:]).to(device = device, dtype = dtype) if 'boundarySupport' in inGrp else dynamicBoundaryData['supports']
-        dynamicBoundaryData['bodyIDs'] = torch.from_numpy(inGrp['boundaryBodyAssociation'][:]).to(device = device, dtype = torch.int64) if 'boundaryBodyAssociation' in inGrp else dynamicBoundaryData['bodyIDs']
-    else:
-        dynamicBoundaryData = None
 
-    state = loadGroup_newFormat(inFile, inGrp, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = buildPriorState, buildNextState = buildNextState)
+    # else:
+    #     dynamicBoundaryData = None
+
+    state = loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = buildPriorState, buildNextState = buildNextState)
 
     iPriorKey = int(key) - hyperParameterDict['frameDistance']
 
@@ -546,7 +657,8 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
         if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
             priorState = copy.deepcopy(state)
         else:
-            priorState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+            grp = inFile['simulationExport']['%05d' % iPriorKey] if '%05d' % iPriorKey in inFile['simulationExport'] else None
+            priorState = loadGroup_newFormat(inFile, grp, staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
         
 
     nextStates = []
@@ -561,12 +673,14 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
         if unrollLength != 0 and hyperParameterDict['frameDistance'] != 0:
             for u in range(unrollLength):
                 unrollKey = int(key) + hyperParameterDict['frameDistance'] * (u + 1)
-                nextState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % unrollKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
+                nextState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % unrollKey], staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
                 nextStates.append(nextState)            
 
     # if hyperParameterDict['adjustForFrameDistance']:
 
     config['particle']['support'] = support
+
+    # print('Loaded frame %s' % key)
 
     return config, attributes, state, priorState, nextStates
 
@@ -607,6 +721,7 @@ def loadGroup_waveEqn(inFile, inGrp, staticBoundaryData, fileName, key, fileData
     return state
 
 def loadFrame_waveEqn(inFile, fileName, key_, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    # print('Loading frame %s' % key_)
     # print(key)
     if isinstance(key_, str) and '_' in key_:
         key = int(key_.split('_')[1])
@@ -705,6 +820,8 @@ def loadFrame_waveEqn(inFile, fileName, key_, fileData, fileIndex, fileOffset, d
 def loadFrame(index, dataset, hyperParameterDict, unrollLength = 8):
 
     fileName, key, fileData, fileIndex, fileOffset = dataset[index] if isinstance(index, int) else index
+
+    # print(f'Loading frame {fileName.split("/")[-1]}:"{key}" w/ unroll length {unrollLength}')
 
     # print(fileName)
     # print(key)

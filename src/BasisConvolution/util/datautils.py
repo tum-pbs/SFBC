@@ -212,6 +212,8 @@ def isTemporalData(inFile):
 
 def getFrameCount(inFile):
     if 'simulationExport' in inFile:
+        if 'initial' in inFile['simulationExport']:
+            return int(len(inFile['simulationExport'].keys()) -1) + 1
         return int(len(inFile['simulationExport'].keys()) -1)
     if 'simulation' in inFile:
         return int(len(inFile['simulation'].keys()) -1)
@@ -224,6 +226,8 @@ def getFrameCount(inFile):
 
 def getFrames(inFile):
     if 'simulationExport' in inFile:
+        if 'initial' in inFile['simulationExport']:
+            return [0] + [int(i) for i in inFile['simulationExport'].keys()], ['00000'] + list(inFile['simulationExport'].keys())
         return [int(i) for i in inFile['simulationExport'].keys()], list(inFile['simulationExport'].keys())
     if 'simulation' in inFile:
         return np.arange(len(inFile['simulation'].keys())).tolist(), list(inFile['simulation'].keys())

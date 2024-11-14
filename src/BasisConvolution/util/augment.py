@@ -64,7 +64,7 @@ from BasisConvolution.util.radius import searchNeighbors
 
 def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
-        print('Unroll length ', unrolLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
+        # print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
         unrollLength = hyperParameterDict['maxUnroll']
         # print('Unroll length exceeds maximum, limiting to', unrollLength)
     config, attributes, currentState, priorState, trajectoryStates = loadFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength)

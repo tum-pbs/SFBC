@@ -203,6 +203,8 @@ def visualizeParticleQuantity(fig, axis, config, visualizationState, quantity: U
         if 'log'in scaling:
             norm = matplotlib.colors.SymLogNorm(vmin = minScale, vmax = maxScale, linthresh = linthresh)
         else:
+            if midPoint == 'mean':
+                midPoint = torch.mean(quantity).cpu().detach().item()
             minScale = - torch.max(torch.abs(quantity - midPoint))
             maxScale =   torch.max(torch.abs(quantity - midPoint))
             norm = matplotlib.colors.CenteredNorm(vcenter = midPoint, halfrange = maxScale)
@@ -261,7 +263,7 @@ def visualizeParticleQuantity(fig, axis, config, visualizationState, quantity: U
 
     return {'plot': scFluid, 'boundaryPlot': scBoundary, 'cbar': cb if cbar else None, 'mapping': mapping, 'colormap': cmap, 'scale': scaling, 'size':4, 'mapToGrid': gridVisualization, 'midPoint' : midPoint, 'linthresh': linthresh, 'which': which, 'plotBoth': plotBoth, 'quantity': quantity, 'operation': operation, 'streamLines': streamLines, 'streamPlot': stream if streamLines and gridVisualization else None, 'axis': axis}
 
-
+import numpy as np
 
 def updatePlot(plotState, visualizationState, quantity : Union[str, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]):        
     # print(inputQuantity.shape)
@@ -371,6 +373,8 @@ def updatePlot(plotState, visualizationState, quantity : Union[str, torch.Tensor
         if 'log'in scaling:
             norm = matplotlib.colors.SymLogNorm(vmin = minScale, vmax = maxScale, linthresh = linthresh)
         else:
+            if midPoint == 'mean':
+                midPoint = torch.mean(qcpu).cpu().detach().item()
             minScale = - torch.max(torch.abs(qcpu - midPoint))
             maxScale =   torch.max(torch.abs(qcpu - midPoint))
             norm = matplotlib.colors.CenteredNorm(vcenter = midPoint, halfrange = maxScale)
@@ -403,7 +407,10 @@ def updatePlot(plotState, visualizationState, quantity : Union[str, torch.Tensor
                 scFluid.set_norm(norm)
         if scBoundary is not None:
             if which == 'fluid':
-                scBoundary.set_offsets(visualizationState['boundary']['positions'].detach().cpu().numpy())
+                if visualizationState['boundary'] is not None:
+                    scBoundary.set_offsets(visualizationState['boundary']['positions'].detach().cpu().numpy())
+                else:
+                    scBoundary.set_offsets([[np.nan,np.nan]])
                 # scBoundary.set_array(qcpu.numpy())
                 # scBoundary.set_norm(norm)
             elif which == 'boundary':

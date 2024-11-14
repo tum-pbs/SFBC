@@ -61,33 +61,40 @@ def updatePlot_testCase_I(plotState, train_ds, hyperParameterDict, frame):
 
 from BasisConvolution.util.plotting import updatePlot
 def preparePlot_testCase_II(train_ds, hyperParameterDict):
+    # print('Preparing Plot')
     config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(0, train_ds, hyperParameterDict)
-        
+    # print('Loaded Frame')
     deAugmentedState = augmentState(copy.deepcopy(currentState), augRotation = currentState['augmentRotation'].T if 'augmentRotation' in currentState else None, augmentFeatures=False)
     visualizationState = prepVisualizationState(deAugmentedState, config)
 
-    s = 4
+    s = 0.5
     fig, axis = plt.subplot_mosaic('''ABC''', figsize=(13.5,5), sharex = False, sharey = False)
 
     indexPlot = visualizeParticleQuantity(fig, axis['A'], config, visualizationState, quantity = 'indices', mapping = '.x', s = s, 
                             scaling = 'lin', gridVisualization=False, cmap = 'twilight', title = 'Particle Index', plotBoth=True, which = 'fluid')
 
     xVelocityPlot = visualizeParticleQuantity(fig, axis['B'], config, visualizationState, quantity = 'velocities', mapping = '.x', s = s, 
-                            scaling = 'lin', gridVisualization=False, cmap = 'twilight', title = 'Particle x-Velcotiy', plotBoth=True, which = 'fluid')
+                            scaling = 'sym', gridVisualization=False, cmap = 'RdBu_r', title = 'Particle x-Velcotiy', plotBoth=True, which = 'fluid', midPoint='mean')
     yVelocityPlot = visualizeParticleQuantity(fig, axis['C'], config, visualizationState, quantity = 'velocities', mapping = '.y', s = s, 
-                            scaling = 'lin', gridVisualization=False, cmap = 'twilight', title = 'Particle y-Velocity', plotBoth=True, which = 'fluid')
+                            scaling = 'sym', gridVisualization=False, cmap = 'RdBu_r', title = 'Particle y-Velocity', plotBoth=True, which = 'fluid', midPoint='mean')
 
+    fileName, key, fileData, fileIndex, fileOffset = train_ds[0]
+
+    fig.suptitle(f'{fileName.split("/")[-1]} - timestep {key}')
 
     fig.tight_layout()
 
     return fig, axis, indexPlot, xVelocityPlot, yVelocityPlot
 
 def updatePlot_testCase_II(plotState, train_ds, hyperParameterDict, frame):
+
     fig, axis, indexPlot, xVelocityPlot, yVelocityPlot = plotState
     # print(frame)
 
     frame[1] = '%05d' % frame[1]
+    # print(f'Preparing Plot for {frame}')
     config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(frame, train_ds, hyperParameterDict)
+    # print('Loaded Frame')
     deAugmentedState = augmentState(copy.deepcopy(currentState), augRotation = currentState['augmentRotation'].T if 'augmentRotation' in currentState else None, augmentFeatures=False)
 
     visualizationState = prepVisualizationState(deAugmentedState, config)
@@ -95,6 +102,10 @@ def updatePlot_testCase_II(plotState, train_ds, hyperParameterDict, frame):
     updatePlot(indexPlot, visualizationState, quantity = 'indices')
     updatePlot(xVelocityPlot, visualizationState, quantity = 'velocities')
     updatePlot(yVelocityPlot, visualizationState, quantity = 'velocities')
+
+    # fileName, key, fileData, fileIndex, fileOffset = train_ds[int(frame[1])]
+
+    fig.suptitle(f'{frame[0].split("/")[-1]} - timestep {frame[1]}')
     fig.canvas.draw()
 
 def preparePlot_testCase_IV(train_ds, hyperParameterDict):
@@ -177,7 +188,7 @@ def getFileCount(file):
 def getPreparePlotFunction(datasetStyle):
     if datasetStyle == 'testcase_I':
         return preparePlot_testCase_I
-    elif datasetStyle == 'testcase_II':
+    elif datasetStyle == 'testcase_II' or datasetStyle == 'testcase_III' or datasetStyle == 'newFormat':
         return preparePlot_testCase_II
     elif datasetStyle == 'testcase_IV':
         return preparePlot_testCase_IV
