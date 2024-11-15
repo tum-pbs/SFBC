@@ -650,16 +650,19 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
 
     state = loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = buildPriorState, buildNextState = buildNextState)
 
-    iPriorKey = int(key) - hyperParameterDict['frameDistance']
 
-    priorState = None
-    if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
-        if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
-            priorState = copy.deepcopy(state)
-        else:
-            grp = inFile['simulationExport']['%05d' % iPriorKey] if '%05d' % iPriorKey in inFile['simulationExport'] else None
-            priorState = loadGroup_newFormat(inFile, grp, staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
-        
+    priorStates = []
+    for h in range(max(hyperParameterDict['historyLength'], 1)):
+        priorState = None        
+        iPriorKey = int(key) - hyperParameterDict['frameDistance'] * (h + 1)
+
+        if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
+            if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
+                priorState = copy.deepcopy(state)
+            else:
+                grp = inFile['simulationExport']['%05d' % iPriorKey] if '%05d' % iPriorKey in inFile['simulationExport'] else None
+                priorState = loadGroup_newFormat(inFile, grp, staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+        priorStates.append(priorState)
 
     nextStates = []
     if buildNextState:
@@ -673,7 +676,7 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
         if unrollLength != 0 and hyperParameterDict['frameDistance'] != 0:
             for u in range(unrollLength):
                 unrollKey = int(key) + hyperParameterDict['frameDistance'] * (u + 1)
-                nextState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % unrollKey], staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
+                nextState = loadGroup_newFormat(inFile, inFile['simulationExport']['%05d' % unrollKey], staticFluidData, staticBoundaryData, fileName, unrollKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)                
                 nextStates.append(nextState)            
 
     # if hyperParameterDict['adjustForFrameDistance']:
@@ -682,7 +685,7 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
 
     # print('Loaded frame %s' % key)
 
-    return config, attributes, state, priorState, nextStates
+    return config, attributes, state, priorStates, nextStates
 
 from BasisConvolution.sph.kernels import getKernel
 import numpy as np
@@ -788,13 +791,15 @@ def loadFrame_waveEqn(inFile, fileName, key_, fileData, fileIndex, fileOffset, d
 
     iPriorKey = int(key) - hyperParameterDict['frameDistance']
 
-    priorState = None
-    if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
-        if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
-            priorState = copy.deepcopy(state)
-        else:
-            priorState = loadGroup_waveEqn(inFile, inFile['simulation']['timestep_%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
-        
+    priorStates = []
+    for h in hyperParameterDict['historyLength']:
+        priorState = None        
+        if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
+            if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
+                priorState = copy.deepcopy(state)
+            else:
+                priorState = loadGroup_waveEqn(inFile, inFile['simulation']['timestep_%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+            priorStates.append(priorState)
 
     nextStates = []
     if buildNextState:

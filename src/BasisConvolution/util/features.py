@@ -22,7 +22,7 @@ def translateFeature(featureName):
     
     return featureName
 
-def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbose = False, includeOther = True):
+def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbose = False, includeOther = True, normalizeRho = False):
     refDtype = currentState[which]['positions'].dtype
     refDevice = currentState[which]['positions'].device
     nPtcls = currentState[which]['numParticles']
@@ -45,8 +45,8 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
 
         if verbose:
             print('Input Operands: ', features)
-        a = getFeaturev2(features[0], currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther)
-        b = getFeaturev2(features[1], currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther)
+        a = getFeaturev2(features[0], currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
+        b = getFeaturev2(features[1], currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
         if a.dim() != b.dim():
             if a.dim() < b.dim():
                 a = a.view(-1,1)
@@ -85,10 +85,10 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
             if verbose:
                 print('Looking up Fluid Attribute', feature)
 
-            fluidAttribute = getFeaturev2(feature, currentState, priorState, 'fluid', config, dt, verbose = verbose, includeOther=includeOther)
+            fluidAttribute = getFeaturev2(feature, currentState, priorState, 'fluid', config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
             if verbose:
                 print('Looking up Boundary Attribute', feature)
-            boundaryAttribute = getFeaturev2(feature, currentState, priorState, 'boundary', config, dt, verbose = verbose, includeOther=includeOther)
+            boundaryAttribute = getFeaturev2(feature, currentState, priorState, 'boundary', config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
 
             if verbose:
                 print('Lookup done')
@@ -210,8 +210,8 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
         
         if verbose:
             print('Looking up feature:', feature)
-        attributeCurrent = getFeaturev2(feature, currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther)
-        attributePrior = getFeaturev2(feature, priorState, None, which, config, dt, verbose = verbose, includeOther=includeOther)
+        attributeCurrent = getFeaturev2(feature, currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
+        attributePrior = getFeaturev2(feature, priorState, None, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
 
         attribute = attributeCurrent - attributePrior
 
@@ -243,8 +243,8 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
             op = None
         if verbose:
             print('Looking up feature:', feature)
-        attributeCurrent = getFeaturev2(feature, currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther)
-        attributePrior = getFeaturev2(feature, priorState, None, which, config, dt, verbose = verbose, includeOther=includeOther)
+        attributeCurrent = getFeaturev2(feature, currentState, priorState, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
+        attributePrior = getFeaturev2(feature, priorState, None, which, config, dt, verbose = verbose, includeOther=includeOther, normalizeRho = normalizeRho)
 
         attribute = (attributeCurrent - attributePrior) / dt
 
@@ -279,7 +279,14 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
             op = None
         if verbose:
             print('Looking up feature:', feature)
-        attribute = currentState[which][translateFeature(feature)]
+        tfeat = translateFeature(feature)
+        attribute = currentState[which][tfeat]
+
+        if tfeat == 'densities' and normalizeRho:
+            if verbose:
+                print('Normalizing Density')
+            attribute = attribute - config['fluid']['rho0']# - 1
+
         if op is not None:
             if op == 'x':
                 return attribute[:,0]
@@ -323,12 +330,28 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
     raise ValueError('Unknown feature: ' + featureName)
  
 
-def getFeatures(featureNames, currentState, priorState, which, config, dt, includeOther = True, verbose = False):
+def getFeatures(featureNames, currentState, priorStates, which, config, dt, includeOther = True, verbose = False, historyLength = 0, normalizeRho = False):
     features = []
     for featureName in featureNames:
         if verbose:
             print('Processing feature (main loop):', featureName)
-        feat = getFeaturev2(featureName, currentState, priorState, which, config, dt, includeOther = includeOther, verbose = verbose)
+        if historyLength == 0:
+            feat = getFeaturev2(featureName, currentState, priorStates[0], which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+        else:
+            for h in range(historyLength + 1):
+                if h == 0:
+                    feat = getFeaturev2(featureName, currentState, priorStates[0], which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+                else:
+                    # print('Processing feature (history loop):', featureName)
+                    # print('History:', h, '/', historyLength, ' - ', len(priorStates))
+                    feature = getFeaturev2(featureName, priorStates[h - 1], priorStates[h] if h < len(priorStates) - 1 else None, which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+                    # print('Feature Shape:', feature.shape)
+                    # print('Current Shape:', feat.shape)
+                    if feature.dim() == 1:
+                        feature = feature.view(-1,1)
+                    feat = torch.cat([feat, feature], dim = 1)
+                if feat.dim() == 1:
+                    feat = feat.view(-1,1)
         if feat.dim() == 1:
             feat = feat.view(-1,1)
         features.append(feat)

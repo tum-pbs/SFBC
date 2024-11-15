@@ -24,6 +24,7 @@ def defaultHyperParameters():
         'seed': 42,
         'minUnroll': 2,
         'maxUnroll': 10,
+        'historyLength': 0,
         'augmentAngle': False,
         'augmentJitter': False,
         'jitterAmount': 0.1,
@@ -60,6 +61,7 @@ def defaultHyperParameters():
         'arch':'',
         'scaleShiftLoss': False,
         'zeroOffset': True,
+        'normalizeDensity' : True,
         'device': 'cpu',
         'dtype': torch.float32,
 
@@ -170,6 +172,8 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['seed'] =  args.seed if hasattr(args, 'seed') else hyperParameterDict['seed']
     hyperParameterDict['minUnroll'] =  args.minUnroll if hasattr(args, 'minUnroll') else hyperParameterDict['minUnroll']
     hyperParameterDict['maxUnroll'] =  args.maxUnroll if hasattr(args, 'maxUnroll') else hyperParameterDict['maxUnroll']
+    hyperParameterDict['historyLength'] =  args.historyLength if hasattr(args, 'historyLength') else hyperParameterDict['historyLength']
+
     hyperParameterDict['augmentAngle'] =  args.augmentAngle if hasattr(args, 'augmentAngle') else hyperParameterDict['augmentAngle']
     hyperParameterDict['augmentJitter'] =  args.augmentJitter if hasattr(args, 'augmentJitter') else hyperParameterDict['augmentJitter']
     hyperParameterDict['jitterAmount'] =  args.jitterAmount if hasattr(args, 'jitterAmount') else hyperParameterDict['jitterAmount']
@@ -183,6 +187,7 @@ def parseArguments(args, hyperParameterDict):
 
     hyperParameterDict['weight_decay'] = args.weight_decay if hasattr(args, 'weight_decay') else hyperParameterDict['weight_decay']
     hyperParameterDict['zeroOffset'] = args.zeroOffset if hasattr(args, 'zeroOffset') else hyperParameterDict['zeroOffset']
+    hyperParameterDict['normalizeDensity'] = args.normalizeDensity if hasattr(args, 'normalizeDensity') else hyperParameterDict['normalizeDensity']
 
     # hyperParameterDict['iterations'] = 10
     hyperParameterDict['loss'] = args.loss if hasattr(args, 'loss') else hyperParameterDict['loss']
@@ -257,6 +262,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'training', 'iterations', hyperParameterDict, 'iterations')
         parseEntry(cfg, 'training', 'minUnroll', hyperParameterDict, 'minUnroll')
         parseEntry(cfg, 'training', 'maxUnroll', hyperParameterDict, 'maxUnroll')
+        parseEntry(cfg, 'training', 'historyLength', hyperParameterDict, 'historyLength')
 
         parseEntry(cfg, 'augmentation', 'jitter', hyperParameterDict, 'augmentJitter') 
         parseEntry(cfg, 'augmentation', 'rotation', hyperParameterDict, 'augmentAngle')
@@ -300,6 +306,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'dataset', 'batchSize', hyperParameterDict, 'batchSize')
         parseEntry(cfg, 'dataset', 'dataLimit', hyperParameterDict, 'dataLimit')
         parseEntry(cfg, 'dataset', 'zeroOffset', hyperParameterDict, 'zeroOffset')
+        parseEntry(cfg, 'dataset', 'normalizeDensity', hyperParameterDict, 'normalizeDensity')
 
         parseEntry(cfg, 'loss', 'li', hyperParameterDict, 'liLoss')
         parseEntry(cfg, 'loss', 'loss', hyperParameterDict, 'loss')
@@ -486,6 +493,7 @@ def toPandaDict(hyperParameterDict):
 
         'minUnroll': hyperParameterDict['minUnroll'],
         'maxUnroll': hyperParameterDict['maxUnroll'],
+        'historyLength': hyperParameterDict['historyLength'],
 
         'cutlassBatchSize': hyperParameterDict['cutlassBatchSize'],
         'li' : hyperParameterDict['liLoss'] if 'liLoss' in hyperParameterDict else None,
@@ -571,8 +579,8 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     gamma = np.power(finalLR / initialLR, 1/lrSteps)
     hyperParameterDict['gamma'] = gamma
 
-    hyperParameterDict['fluidFeatureCount'] = fluidFeatureCount
-    hyperParameterDict['boundaryFeatureCount'] = boundaryFeatureCount
+    hyperParameterDict['fluidFeatureCount'] = fluidFeatureCount #* max(hyperParameterDict['historyLength'], 1)
+    hyperParameterDict['boundaryFeatureCount'] = boundaryFeatureCount #* max(hyperParameterDict['historyLength'], 1)
     hyperParameterDict['groundTruthCount'] = groundTruthCount
     hyperParameterDict['dimension'] = currentState['fluid']['positions'].shape[1]
 
