@@ -10,7 +10,7 @@ def computeSupport(area, targetNumNeighbors, dim):
     if dim == 1:
         return targetNumNeighbors * area
     if dim == 2:
-        return np.sqrt(targetNumNeighbors * area / np.pi)
+        return torch.sqrt(targetNumNeighbors * area / np.pi)
     if dim == 3:
         return (3 * targetNumNeighbors * area / (4 * np.pi))**(1/3)
     else:
@@ -517,7 +517,7 @@ def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, file
     rho = fluidState['densities']
     areas = torch.ones_like(rho) * inFile.attrs['area']
 
-    fluidState['densities'] = rho * inFile.attrs['restDensity']
+    fluidState['densities'] = rho - rho.mean()#* inFile.attrs['restDensity']
     fluidState['areas'] = areas
     fluidState['masses'] = areas * inFile.attrs['restDensity']
     fluidState['supports'] = torch.ones_like(rho) * support
