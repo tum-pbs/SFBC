@@ -64,10 +64,12 @@ from BasisConvolution.util.radius import searchNeighbors
 
 def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
-        # print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
+        print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
         unrollLength = hyperParameterDict['maxUnroll']
         # print('Unroll length exceeds maximum, limiting to', unrollLength)
-    config, attributes, currentState, priorState, trajectoryStates = loadFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength)
+    # print('Loading frame ', index, ' with unroll length ', unrollLength)
+    config, attributes, currentState, priorStates, trajectoryStates = loadFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength)
+    # print(len(priorStates), len(trajectoryStates))
     # print(currentState)
     # print(priorState)
     # print(trajectoryStates)
@@ -75,8 +77,8 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     combinedStates = []
     combinedStates.append(currentState)
 
-    if priorState is not None:
-        combinedStates.append(priorState)
+    if len(priorStates) > 0:
+        combinedStates += priorStates
 
     combinedStates += trajectoryStates
     
@@ -87,8 +89,9 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     searchNeighbors(augmentedStates[0], config, computeKernels = True)
 
     currentState = augmentedStates[0]
-    priorState = augmentedStates[1] if priorState is not None else None
-    trajectoryStates = augmentedStates[2:] if priorState is not None else augmentedStates[1:]
+    priorStates = augmentedStates[1:1 + len(priorStates)] if len(priorStates) > 0 else priorStates
+    trajectoryStates = augmentedStates[1 + len(priorStates):] #if priorState is not None else augmentedStates[1 + len(priorStates):]
+    # print('prior', len(priorStates), 'trajectory', len(trajectoryStates))
 
     if 'compute' in hyperParameterDict['groundTruth']:
         for state  in trajectoryStates:
@@ -101,25 +104,27 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
             else:
                 searchNeighbors(state, config, computeKernels = True)
     if skipAssembly:
-        return config, attributes, currentState, priorState, trajectoryStates
+        return config, attributes, currentState, priorStates, trajectoryStates
 
-    currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorState if priorState is not None else None, 'fluid', config, currentState['time'] - priorState['time'] if priorState is not None else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None)
+    currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorStates, 'fluid', config, currentState['time'] - priorStates[-1]['time'] if len(priorStates) > 0 else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
     
     # print('boundary')
     if 'boundary' in currentState and currentState['boundary'] is not None:
-        currentState['boundary']['features'] = getFeatures(hyperParameterDict['boundaryFeatures'].split(' '), currentState, priorState if priorState is not None else None, 'boundary', config, currentState['time'] - priorState['time'] if priorState is not None else 0.0, verbose = False, includeOther = True)
+        currentState['boundary']['features'] = getFeatures(hyperParameterDict['boundaryFeatures'].split(' '), currentState, priorStates, 'boundary', config, currentState['time'] - priorStates[-1]['time'] if len(priorStates) > 0 else 0.0, verbose = False, includeOther = True, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
     # print('gt')
     cState = currentState
     for state in trajectoryStates:
-        state['fluid']['target'] = getFeatures(hyperParameterDict['groundTruth'].split(' '), state, cState, 'fluid', config, state['time'] - cState['time'] if state['time'] != cState['time'] else 1, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None,)
+        state['fluid']['target'] = getFeatures(hyperParameterDict['groundTruth'].split(' '), state, [cState], 'fluid', config, state['time'] - cState['time'] if state['time'] != cState['time'] else 1, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None, historyLength=0, normalizeRho=hyperParameterDict['normalizeDensity'])
         cState = state
-
-    return config, attributes, augmentedStates[0], augmentedStates[1] if priorState is not None else None, augmentedStates[2:] if priorState is not None else augmentedStates[1:]
+    # print('done' , len(priorStates), len(trajectoryStates))
+    return config, attributes, currentState, priorStates, trajectoryStates
 
 
 def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
+    # print('Loading batch with length ', len(bdata), ' and unroll length ', unrollLength, ' limited to ', hyperParameterDict['maxUnroll'] if limitUnroll else 'unlimited')
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
-        print('Unroll length ', unrolLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"], '[batch]')
+        print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"], '[batch]')
         unrollLength = hyperParameterDict['maxUnroll']
+    
     data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly, limitUnroll=limitUnroll) for index in bdata]
     return [data[0] for data in data], [data[1] for data in data], [data[2] for data in data], [data[3] for data in data], [data[4] for data in data]

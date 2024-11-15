@@ -295,9 +295,12 @@ def parseFile(inFile, hyperParameterDict):
     frameDistance = hyperParameterDict['frameDistance'] if 'frameDistance' in hyperParameterDict else 1
     frameSpacing = hyperParameterDict['dataDistance'] if 'dataDistance' in hyperParameterDict else 1
     maxRollout = hyperParameterDict['maxUnroll'] if 'maxUnroll' in hyperParameterDict else 0
+    historyLength = hyperParameterDict['historyLength'] if 'historyLength' in hyperParameterDict else 0
 
     temporalData = isTemporalData(inFile)
     skip = (1 if hyperParameterDict['zeroOffset'] and temporalData else 0) if 'zeroOffset' in hyperParameterDict else 0
+    skip += (historyLength - 1) if hyperParameterDict['zeroOffset'] else historyLength
+    skip *= frameDistance
     limit = hyperParameterDict['dataLimit'] if 'dataLimit' in hyperParameterDict else 0
 
 
