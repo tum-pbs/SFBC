@@ -91,7 +91,7 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     currentState = augmentedStates[0]
     priorStates = augmentedStates[1:1 + len(priorStates)] if len(priorStates) > 0 else priorStates
     trajectoryStates = augmentedStates[1 + len(priorStates):] #if priorState is not None else augmentedStates[1 + len(priorStates):]
-    print('prior', len(priorStates), 'trajectory', len(trajectoryStates))
+    # print('prior', len(priorStates), 'trajectory', len(trajectoryStates))
 
     if 'compute' in hyperParameterDict['groundTruth']:
         for state  in trajectoryStates:
@@ -121,7 +121,7 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
 
 
 def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
-    print('Loading batch with length ', len(bdata), ' and unroll length ', unrollLength, ' limited to ', hyperParameterDict['maxUnroll'] if limitUnroll else 'unlimited')
+    # print('Loading batch with length ', len(bdata), ' and unroll length ', unrollLength, ' limited to ', hyperParameterDict['maxUnroll'] if limitUnroll else 'unlimited')
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
         print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"], '[batch]')
         unrollLength = hyperParameterDict['maxUnroll']
