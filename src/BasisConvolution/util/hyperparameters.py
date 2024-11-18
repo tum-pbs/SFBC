@@ -69,6 +69,8 @@ def defaultHyperParameters():
         'momentum': 0.9,
 
         'inputEncoderActive': False,
+        'inputEdgeEncoderActive': False,
+        'inputBasisEncoderActive': False,
         'outputDecoderActive': False,
         'edgeMLPActive': False,
         'vertexMLPActive': False,
@@ -84,6 +86,21 @@ def defaultHyperParameters():
                 'noLinear': True,
                 'channels': [1]
             },
+        'inputEdgeEncoder': {
+                'activation': 'celu',
+                'gain': 1,
+                'norm': True,
+                'layout': [32,32],
+                'preNorm': False,
+                'postNorm': False,
+                'noLinear': False,
+                'channels': [-1, 16]
+            },
+        'inputBasisEncoder': {
+            'basisTerms': 5,
+            'basisFunction': 'ffourier',
+            'mode': 'cat'
+        },
         'outputDecoder': {
                 'activation': 'celu',
                 'gain': 1,
@@ -230,6 +247,16 @@ def parseArguments(args, hyperParameterDict):
             hyperParameterDict['inputEncoderActive'] = False
         elif args.inputEncoder == True:
             hyperParameterDict['inputEncoderActive'] = True
+    if hasattr(args, 'inputEdgeEncoder'):
+        if args.inputEdgeEncoder == False:
+            hyperParameterDict['inputEdgeEncoderActive'] = False
+        elif args.inputEdgeEncoder == True:
+            hyperParameterDict['inputEdgeEncoderActive'] = True
+    if hasattr(args, 'inputBasisEncoder'):
+        if args.inputBasisEncoder == False:
+            hyperParameterDict['inputBasisEncoderActive'] = False
+        elif args.inputBasisEncoder == True:
+            hyperParameterDict['inputBasisEncoderActive'] = True
     if hasattr(args, 'outputDecoder'):
         if args.outputDecoder == False:
             hyperParameterDict['outputDecoderActive'] = False
@@ -334,7 +361,7 @@ def parseConfig(config, hyperParameterDict):
         if 'additionalData' in cfg['dataset']:
             hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
 
-        dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer']
+        dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputBasisEncoder', 'inputEdgeEncoder']
         for d in dictList:
             if d in cfg:
                 for key in cfg[d]:
@@ -357,6 +384,8 @@ def parseConfig(config, hyperParameterDict):
 
 
         parseEntry(cfg, 'mlp', 'inputEncoder', hyperParameterDict, 'inputEncoderActive')
+        parseEntry(cfg, 'mlp', 'inputEdgeEncoder', hyperParameterDict, 'inputEdgeEncoderActive')
+        parseEntry(cfg, 'mlp', 'inputBasisEncoder', hyperParameterDict, 'inputBasisEncoderActive')
         parseEntry(cfg, 'mlp', 'outputDecoder', hyperParameterDict, 'outputDecoderActive')
         parseEntry(cfg, 'mlp', 'edgeMLP', hyperParameterDict, 'edgeMLPActive')
         parseEntry(cfg, 'mlp', 'vertexMLP', hyperParameterDict, 'vertexMLPActive')
@@ -511,12 +540,14 @@ def toPandaDict(hyperParameterDict):
         'scaleShiftLoss': hyperParameterDict['scaleShiftLoss'] if 'scaleShiftLoss' in hyperParameterDict else False,
         'integrationScheme': hyperParameterDict['integrationScheme'],
         'inputEncoderActive': hyperParameterDict['inputEncoderActive'],
+        'inputEdgeEncoderActive': hyperParameterDict['inputEdgeEncoderActive'],
+        'inputBasisEncoderActive': hyperParameterDict['inputBasisEncoderActive'],
         'outputDecoderActive': hyperParameterDict['outputDecoderActive'],
         'edgeMLPActive': hyperParameterDict['edgeMLPActive'],
         'vertexMLPActive': hyperParameterDict['vertexMLPActive'],
         'fcLayerMLPActive': hyperParameterDict['fcLayerMLPActive']
     }
-    dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer']
+    dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputEdgeEncoder', 'inputBasisEncoder']
     for d in dictList:
         if d in hyperParameterDict:
             for key in hyperParameterDict[d]:

@@ -224,6 +224,7 @@ def getActivationFunctions():
 def getActivationFunction(function : str):
     return getattr(nn.functional, function)
 
+
 class BasisNetwork(torch.nn.Module):
     def __init__(self, fluidFeatures, boundaryFeatures = 0, layers = [32,64,64,2], denseLayer = True, activation = 'relu',
                 coordinateMapping = 'cartesian', dims = [8], windowFn = None, rbfs = ['linear', 'linear'],batchSize = 32, ignoreCenter = True, normalized = False, outputScaling = 1/128, layerMLP = False, MLPLayout = [32,32], convBias = False, outputBias = True, initializer = 'uniform', optimizeWeights = False, exponentialDecay = True, inputEncoder = None, outputDecoder = None, edgeMLP = None, vertexMLP = None, fcLayerMLP = None, agglomerateViaMLP = False):

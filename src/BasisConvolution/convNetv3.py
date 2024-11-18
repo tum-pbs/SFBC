@@ -32,7 +32,30 @@ def runMLP(mlp, features, batches, verbose = False):
         print(f'\tFeatures: {processedFeatures.shape} [min: {torch.min(processedFeatures)}, max: {torch.max(processedFeatures)}, mean: {torch.mean(processedFeatures)}]')
     return processedFeatures
 
-
+from .detail.basis import evalBasisFunction
+@torch.jit.script
+def basisEncoderLayer(edgeLengths, basisTerms : int, basisFunction : str = 'ffourier', mode : str = 'cat'):
+    bTerms = []
+    for e in edgeLengths.T:
+        bTerm = evalBasisFunction(basisTerms, e, basisFunction).mT
+        bTerms.append(bTerm)
+    if mode == 'cat':
+        return torch.cat(bTerms, dim = 1)
+    elif mode == 'sum':
+        return torch.stack(bTerms, dim = 0).sum(dim = 0)
+    elif mode == 'prod':
+        return torch.stack(bTerms, dim = 0).prod(dim = 0)
+    elif mode == 'outer':
+        return torch.einsum('ij,ik->ijk', bTerms[0], bTerms[1]).reshape(-1, basisTerms * basisTerms)
+    elif mode == 'i':
+        return bTerms[0]
+    elif mode == 'j':
+        return bTerms[1]
+    elif mode == 'k':
+        return bTerms[2]
+    else:
+        raise ValueError(f'Unknown mode: {mode}')
+    
 class GraphNetwork(torch.nn.Module):
     def __init__(self, fluidFeatures, boundaryFeatures = 0, dim = 2, layers = [32,64,64,2], activation = 'relu',
                 coordinateMapping = 'cartesian', windowFn = None, batchSize = 32, outputScaling = 1/128, 
@@ -42,6 +65,7 @@ class GraphNetwork(torch.nn.Module):
                 inputEdgeEncoder = None,
                 outputDecoder = None,
                 fcLayerMLP = None,
+                basisEncoder = None,
                 convLayer = {
                     'basisFunction': 'linear',
                     'basisTerms': 4,
@@ -68,6 +92,7 @@ class GraphNetwork(torch.nn.Module):
         self.inputEdgeEncoder = None
         self.outputDecoder = None
 
+
         self.relu = getattr(nn.functional, activation)
         self.dim = dim
         self.hasBoundaryLayers = boundaryFeatures != 0
@@ -77,6 +102,7 @@ class GraphNetwork(torch.nn.Module):
         self.centerIgnore = centerIgnore
 
         self.inputEncoderProperties = inputEncoder
+        self.basisEncoderProperties = basisEncoder
         self.inputEdgeEncoderProperties = inputEdgeEncoder
         self.outputDecoderProperties = outputDecoder
         self.vertexMLPProperties = vertexMLP
@@ -117,6 +143,24 @@ class GraphNetwork(torch.nn.Module):
                 self.convLayerProperties['dim'] = self.inputEdgeEncoderProperties['output']
             if verbose:
                 print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features')
+
+        if self.basisEncoderProperties is not None:
+            terms = self.basisEncoderProperties['basisTerms']
+            mode = self.basisEncoderProperties['mode']
+            edge_dimensioniality = 0
+            if mode == 'cat':
+                edge_dimensioniality = terms * dim
+            elif mode == 'sum' or mode == 'prod':
+                edge_dimensioniality = terms
+            elif mode == 'outer':
+                edge_dimensioniality = int(terms ** dim)
+            elif mode == 'i' or mode == 'j' or mode == 'k':
+                edge_dimensioniality = terms
+            else:
+                raise ValueError(f'Unknown mode: {mode}')
+        else:
+            edge_dimensioniality = dim if self.inputEdgeEncoder is None else self.inputEdgeEncoderProperties['output']
+        self.convLayerProperties['dim'] = edge_dimensioniality
 
         ### ----------------------------------------------------------------------------------- ###\
         ### Build Output Decoder
@@ -162,9 +206,16 @@ class GraphNetwork(torch.nn.Module):
                 if verbose:
                     print(f'Layer[0]:\tLinear: {newDict}')
             if self.vertexMLPProperties is not None:
+                # print(f'Layer[0]:\tVertex MLP: {self.vertexMLPProperties}')
+
+                vMLPinputs = self.features[0] if boundaryFeatures == 0 else 2 * self.features[0]
+                if self.fcLayerMLPProperties is not None:
+                    vMLPinputs += self.features[0]
+
+                # print(f'vMLPinputs: {vMLPinputs} ({self.features[0]} | {boundaryFeatures} | {self.fcLayerMLPProperties})')
+
                 newDict = copy.copy(self.vertexMLPProperties)
-                newDict['inputFeatures'] = 2 * self.features[0] if boundaryFeatures != 0 else 1 * self.features[0]
-                newDict['inputFeatures'] += self.features[0] if self.fcLayerMLPProperties is not None else 0
+                newDict['inputFeatures'] = vMLPinputs
                 newDict['output'] = outputFeatures
                 self.vertexMLPs.append(buildMLPwDict(newDict))
                 self.vertexMLPDicts.append(newDict)
@@ -194,7 +245,14 @@ class GraphNetwork(torch.nn.Module):
                 print(f'Layer[{1}]:\tLinear: {newDict}')
         if self.vertexMLPProperties is not None:
             newDict = copy.copy(self.vertexMLPProperties)
-            newDict['inputFeatures'] = 3 * self.features[0] if boundaryFeatures != 0 else 2 * self.features[0]
+
+            vMLPinputs = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
+            if self.fcLayerMLPProperties is not None:
+                vMLPinputs = 3 * self.features[0] if boundaryFeatures != 0 else self.features[0] * 2
+            else:
+                vMLPinputs = 2 * self.features[0] if boundaryFeatures != 0 else self.features[0] * 1
+
+            newDict['inputFeatures'] = vMLPinputs
             newDict['output'] = newDict['inputFeatures'] if 'outputFeatures' not in newDict else newDict['outputFeatures']
             if verbose:
                 print(f'Layer[{1}]:\tVertex MLP: {newDict}')
@@ -202,6 +260,7 @@ class GraphNetwork(torch.nn.Module):
             self.vertexMLPDicts.append(newDict)
         if self.edgeMLPProperties is not None:
             newDict = copy.copy(self.edgeMLPProperties)   
+            newDict['inputFeatures'] = edge_dimensioniality
             if verbose:
                 print(f'Layer[{1}]:\tEdge MLP: {newDict}')         
             self.edgeMLPs.append(buildMLPwDict(newDict))
@@ -220,6 +279,7 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[{i+2}]:\t{inputFeatures} -> {self.features[i+1]} features')
             ### Convolution
+            self.convLayerProperties['dim'] = edge_dimensioniality# dim if self.edgeMLPProperties is None else self.edgeMLPProperties['output']
             self.convs.append(BasisConvLayer(
                 inputFeatures = inputFeatures, 
                 outputFeatures = self.features[i+1],
@@ -248,10 +308,12 @@ class GraphNetwork(torch.nn.Module):
                 self.vertexMLPs.append(buildMLPwDict(newDict))
                 self.vertexMLPDicts.append(newDict)
             if self.edgeMLPProperties is not None:
+                newDict = copy.copy(self.edgeMLPProperties)   
+                newDict['inputFeatures'] = newDict['output']
                 if verbose:
-                    print(f'Layer[{i+2}]:\tEdge MLP: {self.edgeMLPProperties}')
-                self.edgeMLPs.append(buildMLPwDict(self.edgeMLPProperties))
-                self.edgeMLPDicts.append(self.edgeMLPProperties)
+                    print(f'Layer[{i+2}]:\tEdge MLP: {newDict}')
+                self.edgeMLPs.append(buildMLPwDict(newDict))
+                self.edgeMLPDicts.append(newDict)
 
 
         ### Last Layer            
@@ -295,6 +357,12 @@ class GraphNetwork(torch.nn.Module):
             print(f'---------------------------------------------------')
         ni, i, fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights = process(
             fluid_edge_index_i, fluid_edge_index_j, distances, self.centerIgnore, self.coordinateMapping, self.windowFn)
+        
+        numEdges = [0] + ni.view(batches, -1).sum(dim = 1).detach().cpu().numpy().tolist()
+        if verbose:
+            print(f'ni: {ni}, i: {i}, fluidEdgeIndex: {fluidEdgeIndex.shape}, fluidEdgeLengths: {fluidEdgeLengths.shape}, fluidEdgeWeights: {fluidEdgeWeights.shape}')
+            print(f'numEdges: {numEdges}')
+
         if self.hasBoundaryLayers:
             nb, b, boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights = process(bf, bb, boundaryDistances, False, self.coordinateMapping, self.windowFn)
             self.nb = nb
@@ -315,8 +383,31 @@ class GraphNetwork(torch.nn.Module):
             fluidFeatures = runMLP(self.inputEncoder, fluidFeatures, batches, verbose = False)
             if verbose:
                 print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
+        if self.inputEdgeEncoder is not None:
+            if verbose:
+                print(f'(pre edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+
+            newEdgeLengths = []
+            for b in range(batches):
+                transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
+                processedEdges = self.inputEdgeEncoder(transposedEdges)
+                processedEdges = processedEdges.clamp(-1,1)
+                newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+            fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
+
+            if verbose:
+                print(f'(post edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+        if self.basisEncoderProperties is not None:
+            if verbose:
+                print(f'(pre basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+
+            fluidEdgeLengths = basisEncoderLayer(fluidEdgeLengths, self.basisEncoderProperties['basisTerms'], self.basisEncoderProperties['basisFunction'], self.basisEncoderProperties['mode'])
+
+            if verbose:
+                print(f'(post basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+
         if verbose:
-            print(f'Layer[0]:\tConvolution (FTF): {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
+            print(f'Layer[0]:\tConvolution (FTF): {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features [edge_dim = {self.convs[0].dim}]')
         fluidConvolution = (self.convs[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights, batches=  batches, verbose  = False))
         if self.hasBoundaryLayers:
             if verbose:
@@ -375,9 +466,17 @@ class GraphNetwork(torch.nn.Module):
         
         if self.edgeMLPProperties is not None:
             if verbose:
-                print(f'Layer[0]:\tRunning Edge MLP {self.edgeMLPDicts["inputFeatures"]} -> {self.edgeMLPDicts["output"]} features')
-            fluidEdgeLengths = self.edgeMLPs[0](fluidEdgeLengths)
-            fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
+                print(f'Layer[0]:\tRunning Edge MLP {self.edgeMLPDicts[0]["inputFeatures"]} -> {self.edgeMLPDicts[0]["output"]} features')
+
+            newEdgeLengths = []
+            for b in range(batches):
+                transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
+                processedEdges = self.edgeMLPs[0](transposedEdges)
+                processedEdges = processedEdges.clamp(-1,1)
+                newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+            fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
+            # fluidEdgeLengths = self.edgeMLPs[0](fluidEdgeLengths)
+            # fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
         # print(self.vertexMLP)
         if self.vertexMLPProperties is not None:
             # print(f'Running Vertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features {ans.shape}')
@@ -394,7 +493,7 @@ class GraphNetwork(torch.nn.Module):
             ansc = self.relu(ans)
             if verbose:
                 # print(f'Layer[{i}]:\tResult for layer {i-1} [min: {torch.min(ansc)}, max: {torch.max(ansc)}, mean: {torch.mean(ansc)}] | [min: {torch.min(ans)}, max: {torch.max(ans)}, mean: {torch.mean(ans)}]')
-                print(f'Layer[{i}]:\tRunning Convolution {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
+                print(f'Layer[{i}]:\tRunning Convolution {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features [edge_dim = {self.convs[i].dim}]')
             # print(f'Layer[{i}]:\tConvolution: {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
             ansConv = self.convs[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
 
@@ -438,9 +537,17 @@ class GraphNetwork(torch.nn.Module):
 
             if self.edgeMLPProperties is not None and i < layers - 1:
                 if verbose:
-                    print(f'Layer[{i}]:\tRunning Edge MLP {self.edgeMLP["inputFeatures"]} -> {self.edgeMLP["output"]} features')
-                fluidEdgeLengths = self.edgeMLPs[i](fluidEdgeLengths)
-                fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
+                    print(f'Layer[{i}]:\tRunning Edge MLP {self.edgeMLPDicts[i]["inputFeatures"]} -> {self.edgeMLPDicts[i]["output"]} features')
+                newEdgeLengths = []
+                for b in range(batches):
+                    transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
+                    processedEdges = self.edgeMLPs[i](transposedEdges)
+                    processedEdges = processedEdges.clamp(-1,1)
+                    newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+                fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
+
+                # fluidEdgeLengths = self.edgeMLPs[i](fluidEdgeLengths)
+                # fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
             if self.vertexMLPProperties is not None:# and i < layers:# - 1:
                 # print(f'Layer[{i}]:\tRunning Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features')
 

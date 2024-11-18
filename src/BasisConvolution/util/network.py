@@ -25,6 +25,8 @@ def buildModel(hyperParameterDict, verbose = False):
     vertexMLP = hyperParameterDict['vertexMLP'] if hyperParameterDict['vertexMLPActive'] else None
     edgeMLP = hyperParameterDict['edgeMLP'] if hyperParameterDict['edgeMLPActive'] else None
     fcMLP = hyperParameterDict['fcLayerMLP'] if hyperParameterDict['fcLayerMLPActive'] else None
+    inputEdgeEncoder = hyperParameterDict['inputEdgeEncoder'] if hyperParameterDict['inputEdgeEncoderActive'] else None
+    inputBasisEncoder = hyperParameterDict['inputBasisEncoder'] if hyperParameterDict['inputBasisEncoderActive'] else None
     convLayerDict = hyperParameterDict['convLayer']
     # convLayerDict['mode'] = 'conv'
     # convLayerDict['vertexMode'] = 'i, j, sum, diff'
@@ -48,6 +50,8 @@ def buildModel(hyperParameterDict, verbose = False):
 
         print(f'inputEncoder: {inputEncoder}')
         print(f'outputDecoder: {outputDecoder}')
+        print(f'inputEdgeEncoder: {inputEdgeEncoder}')
+        print(f'inputBasisEncoder: {inputBasisEncoder}')
         print(f'edgeMLP: {edgeMLP}')
         print(f'vertexMLP: {vertexMLP}')
         print(f'fcMLP: {fcMLP}')
@@ -56,7 +60,8 @@ def buildModel(hyperParameterDict, verbose = False):
         fluidFeatures = fluidFeatureCount, boundaryFeatures = boundaryFeaturecount, dim = hyperParameterDict['dimension'], layers = hyperParameterDict['layers'], activation = hyperParameterDict['activation'],
         coordinateMapping=coordinateMapping, windowFn = windowFunction, 
 
-        vertexMLP = vertexMLP, edgeMLP = edgeMLP, outputDecoder = outputDecoder, inputEncoder = inputEncoder, fcLayerMLP = fcMLP, convLayer = convLayerDict, verbose = False
+        vertexMLP = vertexMLP, edgeMLP = edgeMLP, outputDecoder = outputDecoder, inputEncoder = inputEncoder, fcLayerMLP = fcMLP, convLayer = convLayerDict, verbose = False,
+        inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder
     )
     # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 

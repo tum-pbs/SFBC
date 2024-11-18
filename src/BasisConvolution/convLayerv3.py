@@ -149,10 +149,10 @@ class BasisConvLayer(torch.nn.Module):
         exponentialDecay = False,
         mlpProperties = {
             'activation': 'celu',
-            'gain': 4,
-            'norm': True,
+            'gain': 1,
+            'norm': False,
             'preNorm': False,
-            'postNorm': True,
+            'postNorm': False,
             'noLinear': False,
             'bias': True,
             'groups': [16,32,-1],
@@ -239,6 +239,7 @@ class BasisConvLayer(torch.nn.Module):
                     # self.weight[0,0,:,:]
             # self.root_weight = linearLayer
         if 'mlp' in mode:
+            # print('MLP', mlpProperties)
             self.mlpProperties = copy.deepcopy(mlpProperties)
             if mode == 'mlp': 
                 self.mlpProperties['inputFeatures'] = dim
@@ -255,7 +256,6 @@ class BasisConvLayer(torch.nn.Module):
             if 'diff' in self.vertexMode:
                 self.mlpProperties['inputFeatures'] += inputFeatures
 
-            print(self.mlpProperties)
 
             self.mlpProperties['output'] = outputFeatures
             self.mlp = buildMLPwDict(self.mlpProperties)

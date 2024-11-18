@@ -61,6 +61,8 @@ parser.add_argument('--unrollIncrement', type = int, default = argparse.SUPPRESS
 parser.add_argument('--cfg', type = str, default = "", help='Config file [default = ""]')
 
 parser.add_argument('--inputEncoder', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Input encoder [default = False]')
+parser.add_argument('--inputEdgeEncoder', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Input encoder [default = False]')
+parser.add_argument('--inputBasisEncoder', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Input encoder [default = False]')
 parser.add_argument('--outputDecoder', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Input encoder [default = False]')
 parser.add_argument('--edgeMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Edge MLP [default = False]')
 parser.add_argument('--vertexMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Vertex MLP [default = False]')
