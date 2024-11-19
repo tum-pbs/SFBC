@@ -170,6 +170,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['convLayer']['exponentialDecay'] = args.exponentialDecay  if hasattr(args, 'exponentialDecay') else hyperParameterDict['convLayer']['exponentialDecay']
     hyperParameterDict['convLayer']['initializer'] = args.initializer if hasattr(args, 'initializer') else hyperParameterDict['convLayer']['initializer']
     hyperParameterDict['convLayer']['cutlassBatchSize'] = args.cutlassBatchSize if hasattr(args, 'cutlassBatchSize') else hyperParameterDict['convLayer']['cutlassBatchSize']
+    hyperParameterDict['convLayer']['mode'] = args.convMode if hasattr(args, 'convMode') else hyperParameterDict['convLayer']['mode']
 
 
     hyperParameterDict['coordinateMapping'] = args.coordinateMapping if hasattr(args, 'coordinateMapping') else hyperParameterDict['coordinateMapping']
