@@ -82,7 +82,7 @@ def buildMLPwDict(properties : dict):
         numberOfNorms += 1
     if norm and not noLinear:
         numberOfNorms += len(layout)
-    if isinstance(groups,list) and numberOfNorms != len(groups):
+    if numberOfNorms >0 and (isinstance(groups,list) and numberOfNorms != len(groups)):
         raise ValueError(f'Number of groups {len(groups)} does not match number of norms {numberOfNorms}')
 
     mlp = buildMLPwActivation(layout + [output], inputFeatures, gain = gain, activation = activation, norm = norm, groups = groups, preNorm = preNorm, postNorm = postNorm, noLinear = noLinear, bias = properties['bias'] if 'bias' in properties else True)

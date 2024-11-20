@@ -371,6 +371,7 @@ def parseConfig(config, hyperParameterDict):
                     else:
                         if key != 'inputFeatures' and key != 'output':
                             raise ValueError('Key %s not found in %s' % (key, d))
+                        hyperParameterDict[d][key] = cfg[d][key]
 
         # if 'inputEncoder' in cfg:
         #     hyperParameterDict['inputEncoder'] = cfg['inputEncoder']
