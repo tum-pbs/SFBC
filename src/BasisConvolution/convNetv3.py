@@ -62,7 +62,15 @@ def basisEncoderLayer(edgeLengths, basisTerms : int, basisFunction : str = 'ffou
         return bTerms[2]
     else:
         raise ValueError(f'Unknown mode: {mode}')
-    
+
+def applyNorm(norm, batches, features):
+    transposedFeatures = features.view(batches,-1, *features.shape[1:])
+    transposedFeatures = transposedFeatures.permute(0,2,1)
+    normOutput = norm(transposedFeatures)
+    normOutput = normOutput.permute(0,2,1)
+    normOutput = normOutput.view(-1, *normOutput.shape[2:])   
+    return normOutput  
+
 class GraphNetwork(torch.nn.Module):
     def __init__(self, fluidFeatures, boundaryFeatures = 0, dim = 2, layers = [32,64,64,2], activation = 'relu',
                 coordinateMapping = 'cartesian', windowFn = None, batchSize = 32, outputScaling = 1/128, 
@@ -87,6 +95,7 @@ class GraphNetwork(torch.nn.Module):
                 },
                 outputBias = True,
                 centerIgnore = False,
+                normalization = 'none',
                 verbose = False):
         super().__init__()
         self.features = copy.copy(layers)
@@ -116,6 +125,9 @@ class GraphNetwork(torch.nn.Module):
         self.edgeMLPProperties = edgeMLP
         self.fcLayerMLPProperties = fcLayerMLP
         self.convLayerProperties = convLayer
+        self.normalization = normalization
+        self.normalizationLayers = torch.nn.ModuleList()
+
         if 'dim' not in self.convLayerProperties and self.inputEncoderProperties is None:
             self.convLayerProperties['dim'] = dim
 
@@ -228,12 +240,22 @@ class GraphNetwork(torch.nn.Module):
                 self.vertexMLPDicts.append(newDict)
                 if verbose:
                     print(f'Layer[0]:\tVertex MLP: {newDict}')
+            if self.outputDecoder is not None:
+                if self.normalization != 'none':
+                    if self.normalization == 'layer':
+                        self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+                    elif 'group' in self.normalization:
+                        split = self.normalization.split('_')
+                        self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
+                # self.normalizationLayers.append()
+
             return
 
         ### ----------------------------------------------------------------------------------- ###
         ### Multi Layer Case
 
         ### First Layer
+
         self.convs.append(BasisConvLayer(inputFeatures=inputFeatures, outputFeatures= self.features[0], **self.convLayerProperties))
         if verbose: 
             print(f'Layer[{1}]:\tFluid Convolution: {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
@@ -272,6 +294,16 @@ class GraphNetwork(torch.nn.Module):
                 print(f'Layer[{1}]:\tEdge MLP: {newDict}')         
             self.edgeMLPs.append(buildMLPwDict(newDict))
             self.edgeMLPDicts.append(newDict)
+
+        if self.normalization != 'none':            
+            inputFeatures = 2 * self.features[0] if boundaryFeatures != 0 else 1 * self.features[0]
+            if self.fcLayerMLPProperties is not None:
+                inputFeatures += self.features[0]
+            if self.normalization == 'layer':
+                self.normalizationLayers.append(nn.LayerNorm(inputFeatures))
+            elif 'group' in self.normalization:
+                split = self.normalization.split('_')
+                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), inputFeatures))
 
         ### Middle Layers
         for i, l in enumerate(self.features[1:-1]):
@@ -321,6 +353,13 @@ class GraphNetwork(torch.nn.Module):
                     print(f'Layer[{i+2}]:\tEdge MLP: {newDict}')
                 self.edgeMLPs.append(buildMLPwDict(newDict))
                 self.edgeMLPDicts.append(newDict)
+            if self.normalization != 'none':
+                outputFeatures = self.features[i+1] if self.vertexMLPProperties is None else self.vertexMLPDicts[-1]['output']
+                if self.normalization == 'layer':
+                    self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+                elif 'group' in self.normalization:
+                    split = self.normalization.split('_')
+                    self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
 
 
         ### Last Layer            
@@ -353,6 +392,14 @@ class GraphNetwork(torch.nn.Module):
                 print(f'Layer[-1]:\tVertex MLP: {newDict}')
             self.vertexMLPs.append(buildMLPwDict(newDict))
             self.vertexMLPDicts.append(newDict)
+
+        if self.normalization != 'none' and self.outputDecoder is not None:
+            outputFeatures = self.features[-1] if self.vertexMLPProperties is None else self.vertexMLPDicts[-1]['output']
+            if self.normalization == 'layer':
+                self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+            elif 'group' in self.normalization:
+                split = self.normalization.split('_')
+                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
 
 
 
@@ -423,6 +470,8 @@ class GraphNetwork(torch.nn.Module):
         if self.fcLayerMLPProperties is not None:
             if verbose:
                 print(f'Layer[0]:\tLinear {self.fcLayerMLPDicts[0]["inputFeatures"]} -> {self.fcLayerMLPDicts[0]["output"]} features')
+
+
             transposedFeatures = fluidFeatures.view(batches,-1, *fluidFeatures.shape[1:])
 
             linearOutput = torch.utils.checkpoint.checkpoint(self.fcs[0], transposedFeatures, use_reentrant = False)
@@ -446,6 +495,11 @@ class GraphNetwork(torch.nn.Module):
                 if verbose:
                     print(f'Layer[0]:\tVertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features')
                     fluidConvolution = runMLP(self.vertexMLPs[0], fluidConvolution, batches, verbose = False)
+
+            if self.normalization != 'none':
+                if verbose:
+                    print(f'Layer[0]:\tApplying Normalization {fluidConvolution.shape}')
+                fluidConvolution = applyNorm(self.normalizationLayers[0], batches, fluidConvolution)
 
             if self.outputDecoder is not None:
                 # if verbose:
@@ -497,6 +551,12 @@ class GraphNetwork(torch.nn.Module):
             ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[0], transposedFeatures, use_reentrant = False)
             # ans = self.vertexMLPs[0](transposedFeatures)
             ans = ans.view(-1, *ans.shape[2:])
+        
+        if self.normalization != 'none':
+            if verbose:
+                print(f'Layer[0]:\tApplying Normalization {ans.shape}')
+            fluidConvolution = applyNorm(self.normalizationLayers[0], batches, ans)
+
         layers = len(self.convs)
         for i in range(1 if not self.hasBoundaryLayers else 2,layers):
             if verbose:
@@ -576,6 +636,11 @@ class GraphNetwork(torch.nn.Module):
                 ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[i], transposedFeatures, use_reentrant = False)
                 # ans = self.vertexMLPs[i](transposedFeatures)
                 ans = ans.view(-1, *ans.shape[2:])
+
+            if self.normalization != 'none':
+                if verbose:
+                    print(f'Layer[{i}]:\tApplying Normalization {ans.shape}')
+                ans = applyNorm(self.normalizationLayers[i], batches, ans)
             if verbose:
                 print(f'\n')
 

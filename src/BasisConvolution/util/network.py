@@ -28,6 +28,7 @@ def buildModel(hyperParameterDict, verbose = False):
     inputEdgeEncoder = hyperParameterDict['inputEdgeEncoder'] if hyperParameterDict['inputEdgeEncoderActive'] else None
     inputBasisEncoder = hyperParameterDict['inputBasisEncoder'] if hyperParameterDict['inputBasisEncoderActive'] else None
     convLayerDict = hyperParameterDict['convLayer']
+    normalization = hyperParameterDict['normalization']
     # convLayerDict['mode'] = 'conv'
     # convLayerDict['vertexMode'] = 'i, j, sum, diff'
 
@@ -61,7 +62,7 @@ def buildModel(hyperParameterDict, verbose = False):
         coordinateMapping=coordinateMapping, windowFn = windowFunction, 
 
         vertexMLP = vertexMLP, edgeMLP = edgeMLP, outputDecoder = outputDecoder, inputEncoder = inputEncoder, fcLayerMLP = fcMLP, convLayer = convLayerDict, verbose = False,
-        inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder
+        inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder, normalization=normalization
     )
     # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 

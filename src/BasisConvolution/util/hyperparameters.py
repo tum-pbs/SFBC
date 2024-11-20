@@ -52,9 +52,10 @@ def defaultHyperParameters():
         'independent_dxdt': False,
         'unrollIncrement': 100,
         'networkType': 'w/o shift',
+        'normalization': 'none',
         'skipLastShift': False,
         'shiftLoss': False,
-        'activation': 'relu',
+        'activation': 'silu',
         'dataIndex': '',
         'dxdtLossScaling': 2,
         'exportPath': 'experiments',
@@ -77,7 +78,7 @@ def defaultHyperParameters():
         'fcLayerMLPActive': True,
         
         'inputEncoder': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [32,32],
@@ -87,7 +88,7 @@ def defaultHyperParameters():
                 'channels': [1]
             },
         'inputEdgeEncoder': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [32,32],
@@ -102,7 +103,7 @@ def defaultHyperParameters():
             'mode': 'cat'
         },
         'outputDecoder': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [32,32],
@@ -112,7 +113,7 @@ def defaultHyperParameters():
                 'channels': [-1,16,16]
             },
         'edgeMLP': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [32,32],
@@ -122,7 +123,7 @@ def defaultHyperParameters():
                 'channels': [16,16]
             },
         'vertexMLP': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [48,48],
@@ -132,7 +133,7 @@ def defaultHyperParameters():
                 'channels': [-1,8,8,-1]
             },
         'fcLayerMLP': {
-                'activation': 'celu',
+                'activation': 'default',
                 'gain': 1,
                 'norm': True,
                 'layout': [48,48],
@@ -227,6 +228,8 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['independent_dxdt'] = args.independent_dxdt if hasattr(args, 'independent_dxdt') else hyperParameterDict['independent_dxdt']
     hyperParameterDict['unrollIncrement'] = args.unrollIncrement if hasattr(args, 'unrollIncrement') else hyperParameterDict['unrollIncrement']
     hyperParameterDict['networkType'] = args.networkType if hasattr(args, 'networkType') else hyperParameterDict['networkType']
+    hyperParameterDict['normalization'] = args.normalized if hasattr(args, 'normalized') else hyperParameterDict['normalization']
+
     hyperParameterDict['shiftLoss'] = args.shiftLoss if hasattr(args, 'shiftLoss') else hyperParameterDict['shiftLoss']
     hyperParameterDict['dataIndex'] = args.dataIndex if hasattr(args, 'dataIndex') else hyperParameterDict['dataIndex']
     hyperParameterDict['skipLastShift'] = args.skipLastShift if hasattr(args, 'skipLastShift') else hyperParameterDict['skipLastShift']
@@ -309,6 +312,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'network', 'activation', hyperParameterDict, 'activation')
         # parseEntry(cfg, 'network', 'outputBias', hyperParameterDict, 'outputBias')
         parseEntry(cfg, 'network', 'arch', hyperParameterDict, 'arch')
+        parseEntry(cfg, 'network', 'normalization', hyperParameterDict, 'normalization')
 
         # parseEntry(cfg, 'basis', 'r', hyperParameterDict, 'basisFunctions')
         # parseEntry(cfg, 'basis', 'b', hyperParameterDict, 'basisTerms')
@@ -372,6 +376,12 @@ def parseConfig(config, hyperParameterDict):
                         if key != 'inputFeatures' and key != 'output':
                             raise ValueError('Key %s not found in %s' % (key, d))
                         hyperParameterDict[d][key] = cfg[d][key]
+        for d in dictList:
+            if d == 'inputBasisEncoder' or d == 'convLayer':
+                continue
+            # print(d)
+            if hyperParameterDict[d]['activation'] == 'default':
+                hyperParameterDict[d]['activation'] = hyperParameterDict['activation']
 
         # if 'inputEncoder' in cfg:
         #     hyperParameterDict['inputEncoder'] = cfg['inputEncoder']
@@ -475,6 +485,7 @@ def toPandaDict(hyperParameterDict):
         'basisFunctions': hyperParameterDict['convLayer']['basisFunction'],
 
         'network': hyperParameterDict['network'],
+        'normalization': hyperParameterDict['normalization'],
         # 'outputBias': hyperParameterDict['outputBias'],
         'activation': hyperParameterDict['activation'],
         'networkSeed': hyperParameterDict['networkSeed'],
@@ -692,7 +703,10 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     layerString = f'[{layerString.strip()}]'
     mappingString = f'[{hyperParameterDict["coordinateMapping"][:4]}/{hyperParameterDict["windowFunction"][:4] if hyperParameterDict["windowFunction"] is not None else "None"}]'
-    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + f'[{hyperParameterDict["networkType"]}]'
+
+    normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
+
+    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]'
 
     shortLabel = progressLabel + f' - {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
     exportLabel = f'{shortLabel} - {hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]}'.replace(":", ".").replace("/", "_")

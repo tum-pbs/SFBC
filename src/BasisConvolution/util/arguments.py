@@ -74,6 +74,7 @@ parser.add_argument('--fcLayer', type = bool, default = argparse.SUPPRESS, actio
 
 parser.add_argument('--independent_dxdt', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='dxdt predicts velocity as well')
 parser.add_argument('--networkType', type = str, default = argparse.SUPPRESS, help='Shifting the loop')
+parser.add_argument('--normalization', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Shifting the loop')
 
 parser.add_argument('--lossTerms', type = str, default = argparse.SUPPRESS, help='Loss terms')
 
