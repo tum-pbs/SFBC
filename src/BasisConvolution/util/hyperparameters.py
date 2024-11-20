@@ -661,11 +661,51 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     hyperParameterDict['mlpLabel'] = f'[{"V" if hyperParameterDict["vertexMLPActive"] else " "}{"E" if hyperParameterDict["edgeMLPActive"] else " "}{"I" if hyperParameterDict["inputEncoderActive"] else " "}{"O" if hyperParameterDict["outputDecoderActive"] else " "}]'
 
-    hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]} {hyperParameterDict["mlpLabel"]}'
+        
+    modeText = ""
+    if hyperParameterDict['convLayer']['mode'] == 'conv':
+        modeText = f'{hyperParameterDict["convLayer"]["mode"]:4s} [{hyperParameterDict["convLayer"]["basisFunction"]:8s} x {hyperParameterDict["convLayer"]["basisTerms"]:2d}]'
+    else:
+        modeText = f'{hyperParameterDict["convLayer"]["mode"]:4s}'
+        if hyperParameterDict['inputBasisEncoderActive']:
+            modeText += f' [{hyperParameterDict["inputBasisEncoder"]["basisFunction"]:8s} x {hyperParameterDict["inputBasisEncoder"]["basisTerms"]:2d}]'
+        else:
+            modeText += f' [{"" :13s}]'
 
-    hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s} {hyperParameterDict["mlpLabel"]}'
+    encoderText = f'[{"I" if hyperParameterDict["inputEncoderActive"] else " "}{"O" if hyperParameterDict["outputDecoderActive"] else " "}{"E" if hyperParameterDict["inputEdgeEncoderActive"] else " "}{"B" if hyperParameterDict["inputBasisEncoderActive"] and hyperParameterDict["convLayer"]["mode"] == "mlp" else " "}]'
 
-    hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
+    mlpText = f'[{"V" if hyperParameterDict["vertexMLPActive"] else " "}{"E" if hyperParameterDict["edgeMLPActive"] else " "}{"F" if hyperParameterDict["fcLayerMLPActive"] else " "}]'
+
+    layers = [int(a) for a in hyperParameterDict['arch'].split(' ')]
+    layerString = ''
+    i = 0
+    while i < len(layers):
+        count = 1
+        while i + 1 < len(layers) and layers[i] == layers[i + 1]:
+            count += 1
+            i += 1
+        if count > 1:
+            layerString += f'{layers[i]}x{count} '
+        else:
+            layerString += f'{layers[i]} '
+        i += 1
+
+    layerString = f'[{layerString.strip()}]'
+    mappingString = f'[{hyperParameterDict["coordinateMapping"][:4]}/{hyperParameterDict["windowFunction"][:4] if hyperParameterDict["windowFunction"] is not None else "None"}]'
+    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + f'[{hyperParameterDict["networkType"]}]'
+
+    shortLabel = progressLabel + f' - {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
+    exportLabel = f'{shortLabel} - {hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]}'.replace(":", ".").replace("/", "_")
+
+    hyperParameterDict['progressLabel'] = progressLabel
+    hyperParameterDict['shortLabel'] = shortLabel
+    hyperParameterDict['exportLabel'] = exportLabel
+
+    # hyperParameterDict['shortLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:14s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s}, {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]} {hyperParameterDict["mlpLabel"]}'
+
+    # hyperParameterDict['progressLabel'] = f'{hyperParameterDict["networkType"]:8s}{"+loss" if hyperParameterDict["shiftLoss"] else ""} [{hyperParameterDict["arch"]:4s}] - [{hyperParameterDict["convLayer"]["basisFunction"]:8s}] x [{hyperParameterDict["convLayer"]["basisTerms"]:2d}] @ {hyperParameterDict["coordinateMapping"]:4s}/{hyperParameterDict["windowFunction"] if hyperParameterDict["windowFunction"] is not None else "None":4s} {hyperParameterDict["mlpLabel"]}'
+
+    # hyperParameterDict['exportLabel'] = f'{hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]} - {hyperParameterDict["shortLabel"]}'.replace(":", ".").replace("/", "_")
 
     setSeeds(hyperParameterDict['networkSeed'], verbose = hyperParameterDict['verbose'])
 
