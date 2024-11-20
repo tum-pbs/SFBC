@@ -329,7 +329,10 @@ class BasisConvLayer(torch.nn.Module):
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
             transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
-            outFeatures = self.mlp(transposedFeatures)
+            
+            # outFeatures = self.mlp(transposedFeatures)
+            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
+
             out = outFeatures.view(-1, *outFeatures.shape[2:])
             if verbose:
                 print(f'\tOut: {out.shape} [pre-Scatter]')
@@ -360,7 +363,10 @@ class BasisConvLayer(torch.nn.Module):
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
             transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
-            outFeatures = self.mlp(transposedFeatures)
+
+            # outFeatures = self.mlp(transposedFeatures)
+            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
+
             out = outFeatures.view(-1, *outFeatures.shape[2:])
             out = scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0])
         elif self.mode == 'mlp+conv':
@@ -390,7 +396,11 @@ class BasisConvLayer(torch.nn.Module):
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
             transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
-            outFeatures = self.mlp(transposedFeatures)
+
+
+            # outFeatures = self.mlp(transposedFeatures)
+            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
+            
             out = outFeatures.view(-1, *outFeatures.shape[2:])
             out = scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0])
 

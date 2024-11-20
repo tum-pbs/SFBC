@@ -1,6 +1,8 @@
 import copy
 import torch
 import torch.nn as nn
+import torch.utils
+import torch.utils.checkpoint
 
 
     
@@ -25,8 +27,13 @@ def runMLP(mlp, features, batches, verbose = False):
     if verbose:
         print(f'MLP {features.shape} -> {mlp[-1].out_features} features')
     transposedFeatures = features.view(batches,-1, *features.shape[1:])
-    processedFeatures = mlp(transposedFeatures)
+
+    processedFeatures = torch.utils.checkpoint.checkpoint(mlp, transposedFeatures, use_reentrant = False)
+    # processedFeatures = mlp(transposedFeatures)
+
+
     # print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
+
     processedFeatures = processedFeatures.view(-1, *processedFeatures.shape[2:])
     if verbose:
         print(f'\tFeatures: {processedFeatures.shape} [min: {torch.min(processedFeatures)}, max: {torch.max(processedFeatures)}, mean: {torch.mean(processedFeatures)}]')
@@ -417,7 +424,9 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[0]:\tLinear {self.fcLayerMLPDicts[0]["inputFeatures"]} -> {self.fcLayerMLPDicts[0]["output"]} features')
             transposedFeatures = fluidFeatures.view(batches,-1, *fluidFeatures.shape[1:])
-            linearOutput = self.fcs[0](transposedFeatures)
+
+            linearOutput = torch.utils.checkpoint.checkpoint(self.fcs[0], transposedFeatures, use_reentrant = False)
+            # linearOutput = self.fcs[0](transposedFeatures)
             linearOutput = linearOutput.view(-1, *linearOutput.shape[2:]) 
         else:
             linearOutput = None
@@ -471,7 +480,9 @@ class GraphNetwork(torch.nn.Module):
             newEdgeLengths = []
             for b in range(batches):
                 transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
-                processedEdges = self.edgeMLPs[0](transposedEdges)
+
+                processedEdges = torch.utils.checkpoint.checkpoint(self.edgeMLPs[0], transposedEdges, use_reentrant = False)
+                # processedEdges = self.edgeMLPs[0](transposedEdges)
                 processedEdges = processedEdges.clamp(-1,1)
                 newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
             fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
@@ -483,7 +494,8 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[0]:\tRunning Vertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features\n')
             transposedFeatures = ans.view(batches,-1, *ans.shape[1:])
-            ans = self.vertexMLPs[0](transposedFeatures)
+            ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[0], transposedFeatures, use_reentrant = False)
+            # ans = self.vertexMLPs[0](transposedFeatures)
             ans = ans.view(-1, *ans.shape[2:])
         layers = len(self.convs)
         for i in range(1 if not self.hasBoundaryLayers else 2,layers):
@@ -503,7 +515,8 @@ class GraphNetwork(torch.nn.Module):
                 # print(f'Layer[{i}]:\t\tResult [min: {torch.min(ansConv)}, max: {torch.max(ansConv)}, mean: {torch.mean(ansConv)}]')
                     print(f'Layer[{i}]:\tRunning Linear {self.fcLayerMLPDicts[i - (1 if self.hasBoundaryLayers else 0)]["inputFeatures"]} -> {self.fcLayerMLPDicts[i - (1 if self.hasBoundaryLayers else 0)]["output"]} features') 
                 transposedFeatures = ansc.view(batches,-1, *ansc.shape[1:])
-                ansDense = self.fcs[i - (1 if self.hasBoundaryLayers else 0)](transposedFeatures)
+                # ansDense = self.fcs[i - (1 if self.hasBoundaryLayers else 0)](transposedFeatures)
+                ansDense = torch.utils.checkpoint.checkpoint(self.fcs[i - (1 if self.hasBoundaryLayers else 0)], transposedFeatures, use_reentrant = False)
                 ansDense = ansDense.view(-1, *ansDense.shape[2:])
             else:
                 ansDense = None
@@ -541,7 +554,10 @@ class GraphNetwork(torch.nn.Module):
                 newEdgeLengths = []
                 for b in range(batches):
                     transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
-                    processedEdges = self.edgeMLPs[i](transposedEdges)
+
+                    # processedEdges = self.edgeMLPs[i](transposedEdges)
+                    processedEdges = torch.utils.checkpoint.checkpoint(self.edgeMLPs[i], transposedEdges, use_reentrant = False)
+
                     processedEdges = processedEdges.clamp(-1,1)
                     newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
                 fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
@@ -557,7 +573,8 @@ class GraphNetwork(torch.nn.Module):
                     ans = ans_
                 # print(ans.shape)
                 transposedFeatures = ans.view(batches,-1, *ans.shape[1:])
-                ans = self.vertexMLPs[i](transposedFeatures)
+                ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[i], transposedFeatures, use_reentrant = False)
+                # ans = self.vertexMLPs[i](transposedFeatures)
                 ans = ans.view(-1, *ans.shape[2:])
             if verbose:
                 print(f'\n')
