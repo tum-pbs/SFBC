@@ -12,24 +12,24 @@ class TransposeLayer(nn.Module):
     def forward(self, input):
         return torch.transpose(input, self.dim1, self.dim2)
 
-def runMLP(mlp, features, batches, verbose = False, checkpoint = True):       
+def runMLP_(mlp : torch.nn.Module, features : torch.Tensor, batches : int, verbose : bool = False):  
     if verbose:
         print(f'MLP {features.shape} -> {mlp[-1].out_features} features')
     transposedFeatures = features.view(batches,-1, *features.shape[1:])
-    if checkpoint:
-        processedFeatures = torch.utils.checkpoint.checkpoint(mlp, transposedFeatures, use_reentrant = False)
-    else:
-        processedFeatures = mlp(transposedFeatures)
-    # processedFeatures = mlp(transposedFeatures)
-
-
-    # print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
-
+    
+    processedFeatures = mlp(transposedFeatures)
     processedFeatures = processedFeatures.view(-1, *processedFeatures.shape[2:])
     if verbose:
         print(f'\tFeatures: {processedFeatures.shape} [min: {torch.min(processedFeatures)}, max: {torch.max(processedFeatures)}, mean: {torch.mean(processedFeatures)}]')
     return processedFeatures
 
+
+# @torch.jit.script
+def runMLP(mlp : torch.nn.Module, features : torch.Tensor, batches : int, verbose : bool = False, checkpoint : bool = True):      
+    if checkpoint:
+        return torch.utils.checkpoint.checkpoint(runMLP_, mlp, features, batches, verbose, use_reentrant = False)
+    else:
+        return runMLP_(mlp, features, batches, verbose)
 
 import numpy as np
 def buildMLPwActivation(layers, inputFeatures = 1, gain = 1/np.sqrt(34), activation = 'gelu', norm = False, groups = 1, preNorm = False, postNorm = False, noLinear = False, bias = True):

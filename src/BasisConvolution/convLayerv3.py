@@ -118,6 +118,51 @@ from .detail.mlp import buildMLPwDict, runMLP
 import copy
 from .detail.scatter import scatter_sum
 from typing import Tuple
+
+# @torch.jit.script
+def runMessagePassingStep(edge_index : torch.Tensor, edge_attr : torch.Tensor, x : Tuple[torch.Tensor, torch.Tensor], 
+                          mlp : torch.nn.Module, edgeSkipLinear : torch.nn.Module, 
+                          edgeSkip : str, vertexMode : str, verbose : bool = False, batches : int = 1, returnMessages : bool = False):
+    x_i, x_j = x
+    if verbose:
+        print('MLP')
+    combinedFeatures = torch.empty((edge_index.shape[1],0), device = x_i.device, dtype = x_i.dtype)
+    if 'j' in vertexMode:
+        combinedFeatures = torch.hstack((combinedFeatures, x_j[edge_index[1]]))
+    if 'i' in vertexMode:
+        combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]]))
+    if 'sum' in vertexMode:
+        combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] + x_j[edge_index[1]]))
+    if 'diff' in vertexMode:
+        combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] - x_j[edge_index[1]]))
+
+    if verbose:
+        print(f'\tVertex Mode: {vertexMode} -> Shape {combinedFeatures.shape}')
+    combinedFeatures = torch.hstack((combinedFeatures, edge_attr))
+    if verbose:
+        print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
+
+    out = runMLP(mlp, combinedFeatures, batches, verbose = verbose, checkpoint = False)
+
+    if edgeSkip != 'none':
+        if edgeSkip == 'i':
+            out = out + edgeSkipLinear(x_i)
+        elif edgeSkip == 'j':
+            out = out + edgeSkipLinear(x_j)
+        elif edgeSkip == 'ij':
+            out = out + edgeSkipLinear(torch.hstack((x_i, x_j)))
+        elif edgeSkip == 'e':
+            out = out + edgeSkipLinear(edge_attr)
+    # runMLP
+    
+    if verbose:
+        print(f'\tOut: {out.shape} [pre-Scatter]')
+    return out
+    if returnMessages:    
+        return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
+    else:
+        return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), None
+
 class BasisConvLayer(torch.nn.Module):
     def __init__(
         self,
@@ -148,6 +193,7 @@ class BasisConvLayer(torch.nn.Module):
         initializer = 'uniform',
         optimizeWeights = False,
         exponentialDecay = False,
+        edgeMode = 'none',
         mlpProperties = {
             'activation': 'celu',
             'gain': 1,
@@ -167,6 +213,7 @@ class BasisConvLayer(torch.nn.Module):
         self.inputFeatures = inputFeatures
         self.outputFeatures = outputFeatures
         self.dim = dim
+        self.edgeMode = edgeMode
         
         # print('coordinate mapping', self.coordinateMapping)
         self.basisTerms       = basisTerms if isinstance(basisTerms, list) else repeat(basisTerms, dim)
@@ -328,127 +375,15 @@ class BasisConvLayer(torch.nn.Module):
             return out, None
 
         elif self.mode == 'mlp':
-            if verbose:
-                print('MLP')
-            combinedFeatures = torch.empty((edge_index.shape[1],0), device = x_i.device, dtype = x_i.dtype)
-            if 'j' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_j[edge_index[1]]))
-            if 'i' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]]))
-            if 'sum' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] + x_j[edge_index[1]]))
-            if 'diff' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] - x_j[edge_index[1]]))
-
-            if verbose:
-                print(f'\tVertex Mode: {self.vertexMode} -> Shape {combinedFeatures.shape}')
-            combinedFeatures = torch.hstack((combinedFeatures, edge_attr))
-            if verbose:
-                print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
-
-            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
-
-            if self.edgeSkip != 'none':
-                if self.edgeSkip == 'i':
-                    out = out + self.edgeSkipLinear(x_i)
-                elif self.edgeSkip == 'j':
-                    out = out + self.edgeSkipLinear(x_j)
-                elif self.edgeSkip == 'ij':
-                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
-                elif self.edgeSkip == 'e':
-                    out = out + self.edgeSkipLinear(edge_attr)
-            # runMLP
-            
-            if verbose:
-                print(f'\tOut: {out.shape} [pre-Scatter]')
-
-            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
-            if verbose:
-                print(f'\tOut: {out.shape} [post-Scatter]\n')
-
-        elif self.mode == 'mlp+basis':
-            if verbose:
-                print('MLP+Basis')
-            combinedFeatures = torch.empty((edge_index.shape[1],0), device = x_i.device, dtype = x_i.dtype)
-            if 'j' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_j[edge_index[1]]))
-            if 'i' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]]))
-            if 'sum' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] + x_j[edge_index[1]]))
-            if 'diff' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] - x_j[edge_index[1]]))
-
-            if verbose:
-                print(f'\tVertex Mode: {self.vertexMode} -> Shape {combinedFeatures.shape}')
-            for i, (basis, terms, periodic) in enumerate(zip(self.basisFunctions, self.basisTerms, self.basisPeriodicity)):
-                baseTerms = evalBasisFunction(terms, edge_attr[:,i], basis, periodic).mT
-                combinedFeatures = torch.hstack((combinedFeatures, baseTerms))
-            if verbose:
-                print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
-
-            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
-
-            if self.edgeSkip != 'none':
-                if self.edgeSkip == 'i':
-                    out = out + self.edgeSkipLinear(x_i)
-                elif self.edgeSkip == 'j':
-                    out = out + self.edgeSkipLinear(x_j)
-                elif self.edgeSkip == 'ij':
-                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
-                elif self.edgeSkip == 'e':
-                    out = out + self.edgeSkipLinear(edge_attr)
-                    
-            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
-        elif self.mode == 'mlp+conv':
-            if verbose:
-                print('MLP+Convolution')
-            combinedFeatures = torch.empty((edge_index.shape[1],0), device = x_i.device, dtype = x_i.dtype)
-            if 'j' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_j[edge_index[1]]))
-            if 'i' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]]))
-            if 'sum' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] + x_j[edge_index[1]]))
-            if 'diff' in self.vertexMode:
-                combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] - x_j[edge_index[1]]))
-
-            if verbose:
-                print(f'\tVertex Mode: {self.vertexMode} -> Shape {combinedFeatures.shape}')
-            basisValues = []
-            for i, (basis, terms, periodic) in enumerate(zip(self.basisFunctions, self.basisTerms, self.basisPeriodicity)):
-                basisValues.append(evalBasisFunction(terms, edge_attr[:,i], basis, periodic).mT)
-            bM = basisValues[0]
-            for i in range(1, edge_attr.shape[1]):
-                bM = torch.einsum('nu, nv -> nuv', bM, basisValues[i]).flatten(1)
-
-            combinedFeatures = torch.hstack((combinedFeatures, bM))
-            if verbose:
-                print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
-
-            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
-
-            if self.edgeSkip != 'none':
-                if self.edgeSkip == 'i':
-                    out = out + self.edgeSkipLinear(x_i)
-                elif self.edgeSkip == 'j':
-                    out = out + self.edgeSkipLinear(x_j)
-                elif self.edgeSkip == 'ij':
-                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
-                elif self.edgeSkip == 'e':
-                    out = out + self.edgeSkipLinear(edge_attr)
-                    
-            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
-
-
-        # if self.linearLayerActive:
-        #     out = out + self.linearLayer(x_j)
-        # if self.biasActive:
-        #     out = out + self.bias
-        # if self.feedThrough:
-        #     out = out + x_j
-        # if self.postActivation:
-        #     out = self.postActivation(out)
-
+            messages = torch.utils.checkpoint.checkpoint(runMessagePassingStep, edge_index, edge_attr, x, self.mlp, self.edgeSkipLinear, self.edgeSkip, self.vertexMode, verbose = verbose, batches = batches, returnMessages = self.edgeMode == 'messages', use_reentrant = False)
+            # messages = runMessagePassingStep(edge_index, edge_attr, x, self.mlp, self.edgeSkipLinear, self.edgeSkip, self.vertexMode, verbose = verbose, batches = batches, returnMessages = self.edgeMode == 'messages')
+            out = scatter_sum(messages, edge_index[0], dim = 0, dim_size = x_i.shape[0])
+            if self.edgeMode == 'messages':
+                return out, messages
+            else:
+                return out, None
+            # return runMessagePassingStep(edge_index, edge_attr, x, self.mlp, self.edgeSkipLinear, self.edgeSkip, self.vertexMode, verbose = verbose, batches = batches, returnMessages = self.edgeMode == 'messages')
+        else:
+            raise NotImplementedError('Mode {} is not implemented'.format(self.mode))
         return None
 
