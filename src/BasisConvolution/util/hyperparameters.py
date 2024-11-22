@@ -78,6 +78,11 @@ def defaultHyperParameters():
         'vertexMLPActive': False,
         'fcLayerMLPActive': True,
         
+        'edgeMode': 'none',
+        'skipLayerMode': 'mlp',
+        'skipConnectionMode': 'cconv',
+        'activationOnNode': True,
+        
         'inputEncoder': {
                 'activation': 'default',
                 'gain': 1,
@@ -148,7 +153,7 @@ def defaultHyperParameters():
                 'postNorm': True,
                 'noLinear': False,
                 'channels': [1],
-                'bias':True
+                'bias':True,
             },
         'fcLayerMLP': {
                 'activation': 'default',
@@ -171,7 +176,8 @@ def defaultHyperParameters():
             'cutlassNormalization': False,
             'biasActive': False,
             'mode': 'conv',
-            'vertexMode': 'j'
+            'vertexMode': 'ij',
+            'edgeSkip': 'none'
         },
         'shiftCFL': 10,
         'shiftIters': 1,
@@ -261,6 +267,11 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['shiftIters'] = args.shiftIters if hasattr(args, 'shiftIters') else hyperParameterDict['shiftIters']
     hyperParameterDict['numNeighbors'] = args.numNeighbors if hasattr(args, 'numNeighbors') else hyperParameterDict['numNeighbors']
     hyperParameterDict['firstLayerMode'] = args.firstLayerMode if hasattr(args, 'firstLayerMode') else hyperParameterDict['firstLayerMode']
+            
+    hyperParameterDict['edgeMode'] = args.edgeMode if hasattr(args, 'edgeMode') else hyperParameterDict['edgeMode']
+    hyperParameterDict['skipLayerMode'] = args.skipLayerMode if hasattr(args, 'skipLayerMode') else hyperParameterDict['skipLayerMode']
+    hyperParameterDict['skipConnectionMode'] = args.skipConnectionMode if hasattr(args, 'skipConnectionMode') else hyperParameterDict['skipConnectionMode']
+    hyperParameterDict['activationOnNode'] = args.activationOnNode if hasattr(args, 'activationOnNode') else hyperParameterDict['activationOnNode']
 
 
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
@@ -368,6 +379,10 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'network', 'gt', hyperParameterDict, 'groundTruth')
         parseEntry(cfg, 'network', 'boundary', hyperParameterDict, 'boundary')
         parseEntry(cfg, 'network', 'firstLayerMode', hyperParameterDict, 'firstLayerMode')
+        parseEntry(cfg, 'network', 'edgeMode', hyperParameterDict, 'edgeMode')
+        parseEntry(cfg, 'network', 'skipLayerMode', hyperParameterDict, 'skipLayerMode')
+        parseEntry(cfg, 'network', 'skipConnectionMode', hyperParameterDict, 'skipConnectionMode')
+        parseEntry(cfg, 'network', 'activationOnNode', hyperParameterDict, 'activationOnNode')
 
         parseEntry(cfg, 'misc', 'verbose', hyperParameterDict, 'verbose')
         parseEntry(cfg, 'loss', 'independent_dxdt', hyperParameterDict, 'independent_dxdt')
@@ -384,8 +399,9 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'shifting', 'skipLastShift', hyperParameterDict, 'skipLastShift')
         parseEntry(cfg, 'loss', 'dxdtLossScaling', hyperParameterDict, 'dxdtLossScaling')
 
-        if 'additionalData' in cfg['dataset']:
-            hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
+        if 'dataset' in cfg:
+            if 'additionalData' in cfg['dataset']:
+                hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
 
         dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputBasisEncoder', 'inputEdgeEncoder', 'messageMLP']
         for d in dictList:
@@ -432,7 +448,12 @@ def parseHyperParameters(args, config = None):
     hyperParameterDict = defaultHyperParameters()
 
     if config is not None:
-        hyperParameterDict = parseConfig(config, hyperParameterDict)
+        if ' ' in config:
+            configs = config.split(' ')
+            for c in configs:
+                hyperParameterDict = parseConfig(c, hyperParameterDict)
+        else:
+            hyperParameterDict = parseConfig(config, hyperParameterDict)
     
     hyperParameterDict = parseArguments(args, hyperParameterDict)
 
@@ -577,6 +598,11 @@ def toPandaDict(hyperParameterDict):
         'inputEdgeEncoderActive': hyperParameterDict['inputEdgeEncoderActive'],
         'inputBasisEncoderActive': hyperParameterDict['inputBasisEncoderActive'],
         'firstLayerMode': hyperParameterDict['firstLayerMode'],
+        'edgeMode': hyperParameterDict['edgeMode'],
+        'skipLayerMode': hyperParameterDict['skipLayerMode'],
+        'skipConnectionMode': hyperParameterDict['skipConnectionMode'],
+        'activationOnNode': hyperParameterDict['activationOnNode'],
+        
         'outputDecoderActive': hyperParameterDict['outputDecoderActive'],
         'edgeMLPActive': hyperParameterDict['edgeMLPActive'],
         'vertexMLPActive': hyperParameterDict['vertexMLPActive'],

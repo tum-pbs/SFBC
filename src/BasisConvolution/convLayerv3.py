@@ -40,23 +40,23 @@ from .detail.mapping import mapToSpherePreserving, mapToSpherical
 
 from .detail.typing import Adj, OptPairTensor, OptTensor, Size
 
-def buildMLP(layers, inputFeatures = 1, gain = 1/np.sqrt(34), useBias = False):
-    modules = []
-    if len(layers) > 1:
-        for i in range(len(layers) - 1):
-            modules.append(nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i], bias = useBias))
-            torch.nn.init.xavier_normal_(modules[-1].weight,gain)
-            if useBias:
-                torch.nn.init.zeros_(modules[-1].bias)
-            # modules.append(nn.BatchNorm1d(layers[i]))
-            modules.append(nn.ReLU())
-        modules.append(nn.Linear(layers[-2],layers[-1], bias = useBias))
-    else:
-        modules.append(nn.Linear(inputFeatures,layers[-1], bias = useBias))        
-    torch.nn.init.xavier_normal_(modules[-1].weight,gain)
-    if useBias:
-        torch.nn.init.zeros_(modules[-1].bias)
-    return nn.Sequential(*modules)
+# def buildMLP(layers, inputFeatures = 1, gain = 1/np.sqrt(34), useBias = False):
+#     modules = []
+#     if len(layers) > 1:
+#         for i in range(len(layers) - 1):
+#             modules.append(nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i], bias = useBias))
+#             torch.nn.init.xavier_normal_(modules[-1].weight,gain)
+#             if useBias:
+#                 torch.nn.init.zeros_(modules[-1].bias)
+#             # modules.append(nn.BatchNorm1d(layers[i]))
+#             modules.append(nn.ReLU())
+#         modules.append(nn.Linear(layers[-2],layers[-1], bias = useBias))
+#     else:
+#         modules.append(nn.Linear(inputFeatures,layers[-1], bias = useBias))        
+#     torch.nn.init.xavier_normal_(modules[-1].weight,gain)
+#     if useBias:
+#         torch.nn.init.zeros_(modules[-1].bias)
+#     return nn.Sequential(*modules)
 
 
 import matplotlib.pyplot as plt
@@ -114,9 +114,10 @@ def initializeWeights2D(basis, nx, n, weights, plot = False):
 
     return (weights - np.mean(out)) / (np.std(out))
 
-from .detail.mlp import buildMLPwDict
+from .detail.mlp import buildMLPwDict, runMLP
 import copy
 from .detail.scatter import scatter_sum
+from typing import Tuple
 class BasisConvLayer(torch.nn.Module):
     def __init__(
         self,
@@ -125,7 +126,7 @@ class BasisConvLayer(torch.nn.Module):
         dim: int = 2,
 
         basisTerms : Union[int, List[int]] = [4, 4],
-        basisFunction : Union[int, List[int]] = 'linear',
+        basisFunction : Union[str, List[str]] = 'linear',
         basisPeriodicity : Union[bool, List[bool]] = False,
 
         linearLayerActive: bool = False,
@@ -158,6 +159,7 @@ class BasisConvLayer(torch.nn.Module):
             'groups': [1],
             'layout': [64],
         },
+        edgeSkip = 'none',
         **kwargs
     ):
         super().__init__(**kwargs)      
@@ -172,24 +174,25 @@ class BasisConvLayer(torch.nn.Module):
         self.basisPeriodicity = basisPeriodicity if isinstance(basisPeriodicity, list) else repeat(basisPeriodicity, dim) 
         self.cutlassBatchSize = cutlassBatchSize
 
-        self.linearLayerActive = linearLayerActive
-        self.linearLayerHiddenLayout = linearLayerHiddenLayout
-        self.linearLayerActivation = None if linearLayerActivation is None else getattr(nn.functional, linearLayerActivation)
+        # self.linearLayerActive = linearLayerActive
+        # self.linearLayerHiddenLayout = linearLayerHiddenLayout
+        # self.linearLayerActivation = None if linearLayerActivation is None else getattr(nn.functional, linearLayerActivation)
 
 
-        self.preActivation = None if preActivation is None else getattr(nn.functional, preActivation)
-        self.postActivation = None if postActivation is None else getattr(nn.functional, postActivation)
+        # self.preActivation = None if preActivation is None else getattr(nn.functional, preActivation)
+        # self.postActivation = None if postActivation is None else getattr(nn.functional, postActivation)
         
-        self.feedThrough = feedThrough
-        self.biasActive = biasActive
+        # self.feedThrough = feedThrough
+        # self.biasActive = biasActive
         self.cutlassNormalization = cutlassNormalization
         self.mode = mode
         self.vertexMode = vertexMode
 
-        if self.biasActive:
+        if biasActive:
+            raise NotImplementedError('Bias is not supported in this version')
             self.bias = Parameter(torch.zeros(outputFeatures))
-        else:
-            self.register_parameter('bias', None)
+        # else:
+            # self.register_parameter('bias', None)
 
         if mode == 'conv':
             self.weight = Parameter(torch.Tensor(*self.basisTerms, inputFeatures, outputFeatures))
@@ -261,18 +264,32 @@ class BasisConvLayer(torch.nn.Module):
             self.mlp = buildMLPwDict(self.mlpProperties)
 
         if linearLayerActive:
+            raise NotImplementedError('Linear Layer is no longer supported here')
             self.linearLayer = buildMLP(self.linearLayerHiddenLayout + [outputFeatures], inputFeatures, 1, False)
-        self.reset_parameters()
+        self.edgeSkip = edgeSkip
+        if self.edgeSkip != 'none':
+            if self.edgeSkip == 'i':
+                self.edgeSkipLinear = nn.Linear(inputFeatures, outputFeatures, bias = False)
+            elif self.edgeSkip == 'j':
+                self.edgeSkipLinear = nn.Linear(inputFeatures, outputFeatures, bias = False)
+            elif self.edgeSkip == 'ij':
+                self.edgeSkipLinear = nn.Linear(2 * inputFeatures, outputFeatures, bias = False)
+            elif self.edgeSkip == 'e':
+                self.edgeSkipLinear = nn.Linear(dim, outputFeatures, bias = False)
+            else:
+                raise NotImplementedError('Edge Skip is not implemented for {}'.format(self.edgeSkip))
+        
+        # self.reset_parameters()
 
-    def reset_parameters(self):
-        if self.linearLayerActive:
-            self.linearLayer.reset_parameters()
-        if self.biasActive:
-            zeros(self.bias)
+    # def reset_parameters(self):
+    #     if self.linearLayerActive:
+    #         self.linearLayer.reset_parameters()
+    #     if self.biasActive:
+    #         zeros(self.bias)
 
 
     def forward(self, x: Union[Tensor, OptPairTensor], edge_index: Adj,
-                edge_attr: Tensor, edge_weights : OptTensor = None, batches: int = 1, verbose = False) -> Tensor:
+                edge_attr: Tensor, edge_weights : OptTensor = None, batches: int = 1, verbose = False) -> Tuple[Tensor, Optional[Tensor]]:
         x_i, x_j = x
         # if verbose:
             # print(x_i.shape, x_j.shape, edge_index.shape, edge_attr.shape, edge_weights.shape)
@@ -292,11 +309,11 @@ class BasisConvLayer(torch.nn.Module):
             print('\tBasis Periodicity: ', self.basisPeriodicity)
             print('\tCutlass Batch Size: ', self.cutlassBatchSize)
 
-        if self.preActivation is not None:
-            if verbose:
-                print('PreActivation')
-                print('\tFunction: ', self.preActivation)
-            x_j = self.preActivation(x_j)
+        # if self.preActivation is not None:
+        #     if verbose:
+        #         print('PreActivation')
+        #         print('\tFunction: ', self.preActivation)
+        #     x_j = self.preActivation(x_j)
 
         if self.mode == 'conv':
             if verbose:
@@ -308,6 +325,7 @@ class BasisConvLayer(torch.nn.Module):
                                 self.cutlassBatchSize, self.cutlassBatchSize)
             if verbose:
                 print('\tOut: ', out.shape, '\n')
+            return out, None
 
         elif self.mode == 'mlp':
             if verbose:
@@ -328,16 +346,23 @@ class BasisConvLayer(torch.nn.Module):
             if verbose:
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
-            transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
+            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
 
-            # outFeatures = self.mlp(transposedFeatures)
-            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
-
-            out = outFeatures.view(-1, *outFeatures.shape[2:])
+            if self.edgeSkip != 'none':
+                if self.edgeSkip == 'i':
+                    out = out + self.edgeSkipLinear(x_i)
+                elif self.edgeSkip == 'j':
+                    out = out + self.edgeSkipLinear(x_j)
+                elif self.edgeSkip == 'ij':
+                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
+                elif self.edgeSkip == 'e':
+                    out = out + self.edgeSkipLinear(edge_attr)
+            # runMLP
+            
             if verbose:
                 print(f'\tOut: {out.shape} [pre-Scatter]')
 
-            out = scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0])
+            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
             if verbose:
                 print(f'\tOut: {out.shape} [post-Scatter]\n')
 
@@ -362,13 +387,19 @@ class BasisConvLayer(torch.nn.Module):
             if verbose:
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
-            transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
+            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
 
-            # outFeatures = self.mlp(transposedFeatures)
-            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
-
-            out = outFeatures.view(-1, *outFeatures.shape[2:])
-            out = scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0])
+            if self.edgeSkip != 'none':
+                if self.edgeSkip == 'i':
+                    out = out + self.edgeSkipLinear(x_i)
+                elif self.edgeSkip == 'j':
+                    out = out + self.edgeSkipLinear(x_j)
+                elif self.edgeSkip == 'ij':
+                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
+                elif self.edgeSkip == 'e':
+                    out = out + self.edgeSkipLinear(edge_attr)
+                    
+            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
         elif self.mode == 'mlp+conv':
             if verbose:
                 print('MLP+Convolution')
@@ -395,24 +426,29 @@ class BasisConvLayer(torch.nn.Module):
             if verbose:
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
-            transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
+            out = runMLP(self.mlp, combinedFeatures, batches, verbose = verbose)
+
+            if self.edgeSkip != 'none':
+                if self.edgeSkip == 'i':
+                    out = out + self.edgeSkipLinear(x_i)
+                elif self.edgeSkip == 'j':
+                    out = out + self.edgeSkipLinear(x_j)
+                elif self.edgeSkip == 'ij':
+                    out = out + self.edgeSkipLinear(torch.hstack((x_i, x_j)))
+                elif self.edgeSkip == 'e':
+                    out = out + self.edgeSkipLinear(edge_attr)
+                    
+            return scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0]), out
 
 
-            # outFeatures = self.mlp(transposedFeatures)
-            outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
-            
-            out = outFeatures.view(-1, *outFeatures.shape[2:])
-            out = scatter_sum(out, edge_index[0], dim = 0, dim_size = x_i.shape[0])
+        # if self.linearLayerActive:
+        #     out = out + self.linearLayer(x_j)
+        # if self.biasActive:
+        #     out = out + self.bias
+        # if self.feedThrough:
+        #     out = out + x_j
+        # if self.postActivation:
+        #     out = self.postActivation(out)
 
-
-        if self.linearLayerActive:
-            out = out + self.linearLayer(x_j)
-        if self.biasActive:
-            out = out + self.bias
-        if self.feedThrough:
-            out = out + x_j
-        if self.postActivation:
-            out = self.postActivation(out)
-
-        return out
+        return None
 

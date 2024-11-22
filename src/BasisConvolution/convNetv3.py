@@ -21,23 +21,8 @@ from .convLayerv3 import BasisConvLayer
 
 from .detail.mapping import mapToSpherePreserving, mapToSpherical, process
 import torch.nn as nn
-from .detail.mlp import buildMLPwDict
+from .detail.mlp import buildMLPwDict, runMLP
 
-def runMLP(mlp, features, batches, verbose = False):       
-    if verbose:
-        print(f'MLP {features.shape} -> {mlp[-1].out_features} features')
-    transposedFeatures = features.view(batches,-1, *features.shape[1:])
-
-    processedFeatures = torch.utils.checkpoint.checkpoint(mlp, transposedFeatures, use_reentrant = False)
-    # processedFeatures = mlp(transposedFeatures)
-
-
-    # print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
-
-    processedFeatures = processedFeatures.view(-1, *processedFeatures.shape[2:])
-    if verbose:
-        print(f'\tFeatures: {processedFeatures.shape} [min: {torch.min(processedFeatures)}, max: {torch.max(processedFeatures)}, mean: {torch.mean(processedFeatures)}]')
-    return processedFeatures
 
 from .detail.basis import evalBasisFunction
 @torch.jit.script
@@ -71,12 +56,16 @@ def applyNorm(norm, batches, features):
     normOutput = normOutput.view(-1, *normOutput.shape[2:])   
     return normOutput  
 
-def buildSkipConnection(currentFeatures, nextFeatures, skipConnectionMode, skipLayerMode, skipConnectionProperties, verbose = False, layer = 1):
+def buildSkipConnection(currentFeatures, nextFeatures, skipConnectionMode, skipLayerMode, skipConnectionProperties, verbose = False, layer = 1, layerCount = -1):
         if skipConnectionMode != 'none':
             if skipLayerMode == 'mlp':
                 newDict = copy.copy(skipConnectionProperties)
                 newDict['inputFeatures'] = currentFeatures
                 newDict['output'] = nextFeatures
+                if isinstance(skipConnectionProperties['bias'], str):
+                    newDict['bias'] = True if skipConnectionProperties['bias'] == 'except-last' else False
+                    if skipConnectionProperties['bias'] == 'except-last' and layer == layerCount:
+                        newDict['bias'] = False
                 mlp = buildMLPwDict(newDict)
                 cfg = newDict
                 if verbose:
@@ -153,7 +142,7 @@ class GraphNetwork(torch.nn.Module):
 
                 skipLayerMLP = None,
                 skipLayerMode = 'none', # 'none' | 'mlp' | 'linear'
-                skipConnectionMode = 'stack', # 'nonde' | 'stack' | 'add'
+                skipConnectionMode = 'stack', # 'nonde' | 'stack' | 'add' | 'cconv'
 
                 convLayer = {
                     'basisFunction': 'linear',
@@ -173,6 +162,7 @@ class GraphNetwork(torch.nn.Module):
                 centerIgnore = False,
 
                 normalization = 'none',
+                activationOnNode = True,
                 verbose = False):
         super().__init__()
         self.features = copy.copy(layers)
@@ -213,6 +203,7 @@ class GraphNetwork(torch.nn.Module):
         self.skipConnectionProperties = skipLayerMLP
         self.skipLayerMode = skipLayerMode
         self.skipConnectionMode = skipConnectionMode
+        self.activationOnNode = activationOnNode
 
 
         self.normalization = normalization
@@ -279,6 +270,7 @@ class GraphNetwork(torch.nn.Module):
                 print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features ({sum([p.numel() for p in self.inputEdgeEncoder.parameters()])} parameters)')
 
         self.messageLayerProperties['dim'] = edge_dimensioniality
+        # self.messageLayerProperties['edgeMode'] = edgeMode
 
         ### ----------------------------------------------------------------------------------- ###\
         ### Build Output Decoder
@@ -355,27 +347,6 @@ class GraphNetwork(torch.nn.Module):
             print('---------------------------------------------------------------------------------------\nBuilding first layer')
         currentFeatures = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
 
-        self.messageProcessors.append(BasisConvLayer(inputFeatures=currentFeatures, outputFeatures= self.features[0], **self.messageLayerProperties))
-        if verbose: 
-            print(f'Layer[{1}]:\tFluid Convolution: {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[0].parameters()])} parameters)')
-        if boundaryFeatures != 0:
-            self.messageProcessors.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures= self.features[0],**self.messageLayerProperties ))
-            if verbose:
-                print(f'Layer[{1}]:\tBoundary Convolution: {self.messageProcessors[1].inputFeatures} -> {self.messageProcessors[1].outputFeatures} features')
-
-        if self.edgeMLPmode == 'message':
-            edge_dimensioniality = self.features[0]
-
-        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = 1)
-        if skipLayerActive:
-            self.skipConnections.append(skipMLP)
-            self.skipConnectionDicts.append(skipCfg)
-
-        vMLPActive, vMLP, vMLPCfg = buildVertexMLP(currentFeatures, self.features[0] * (1 if boundaryFeatures == 0 else 2), self.features[0], self.vertexMLPProperties, verbose = verbose, layer = 1)
-        if vMLPActive:
-            self.vertexMLPs.append(vMLP)
-            self.vertexMLPDicts.append(vMLPCfg)
-                
         if self.edgeMLPProperties is not None:
             newDict = copy.copy(self.edgeMLPProperties)   
             newDict['inputFeatures'] = edge_dimensioniality        
@@ -387,6 +358,33 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[{1}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[0].parameters()])} parameters)') 
             self.edgeMLPDicts.append(newDict)
+        self.messageLayerProperties['dim'] = edge_dimensioniality
+            
+        self.messageProcessors.append(BasisConvLayer(inputFeatures=currentFeatures, outputFeatures= self.features[0], **self.messageLayerProperties))
+        if verbose: 
+            print(f'Layer[{1}]:\tFluid Convolution: {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[0].parameters()])} parameters)')
+        if boundaryFeatures != 0:
+            self.messageProcessors.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures= self.features[0],**self.messageLayerProperties ))
+            if verbose:
+                print(f'Layer[{1}]:\tBoundary Convolution: {self.messageProcessors[1].inputFeatures} -> {self.messageProcessors[1].outputFeatures} features')
+
+        if self.edgeMLPmode == 'message':
+            edge_dimensioniality = self.features[0]
+            if self.edgeMLPProperties is not None:
+                raise ValueError(f'Edge MLPs are not supported in message mode')
+
+        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = 1)
+        if self.skipConnectionMode == 'add' or not skipLayerActive:
+            skipFeatureSize = 0
+        if skipLayerActive:
+            self.skipConnections.append(skipMLP)
+            self.skipConnectionDicts.append(skipCfg)
+
+        vMLPActive, vMLP, vMLPCfg = buildVertexMLP(currentFeatures, self.features[0] * (1 if boundaryFeatures == 0 else 2), self.features[0], self.vertexMLPProperties, verbose = verbose, layer = 1)
+        if vMLPActive:
+            self.vertexMLPs.append(vMLP)
+            self.vertexMLPDicts.append(vMLPCfg)
+                
 
         if self.normalization != 'none':    
             # inputFeatures = currentFeatures
@@ -402,13 +400,20 @@ class GraphNetwork(torch.nn.Module):
         for i, l in enumerate(self.features[1:-1]):
             # if verbose:
                 # print(f'Layer[{i+2}]:\t{self.features[i]} -> {self.features[i+1]} features')
-            if self.skipConnectionMode == 'stack':
+            if self.skipConnectionMode == 'stack' or (self.skipConnectionMode == 'cconv' and i == 0):
                 currentFeatures = self.features[i] + (self.features[0] if boundaryFeatures != 0 and i == 0 else 0) + skipFeatureSize
             else:
                 currentFeatures = self.features[i] + (self.features[0] if boundaryFeatures != 0 and i == 0 else 0)
 
             if verbose:
                 print(f'Layer[{i+2}]: {currentFeatures} -> {self.features[i+1]} features')
+            if self.edgeMLPProperties is not None:
+                newDict = copy.copy(self.edgeMLPProperties)   
+                newDict['inputFeatures'] = edge_dimensioniality
+                self.edgeMLPs.append(buildMLPwDict(newDict))
+                if verbose:
+                    print(f'Layer[{i+2}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[i].parameters()])} parameters)')
+                self.edgeMLPDicts.append(newDict)
             ### Convolution
             self.messageLayerProperties['dim'] = edge_dimensioniality# dim if self.edgeMLPProperties is None else self.edgeMLPProperties['output']
             self.messageProcessors.append(BasisConvLayer(
@@ -417,10 +422,11 @@ class GraphNetwork(torch.nn.Module):
                 **self.messageLayerProperties))
             if verbose:
                 print(f'Layer[{i+2}]:\tFluid Convolution: {self.messageProcessors[i+1].inputFeatures} -> {self.messageProcessors[i+1].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[i+1].parameters()])} parameters)')
-
+            if self.edgeMLPmode == 'message':
+                edge_dimensioniality = self.features[i+1]
             ### Fully Connected Layer
 
-            skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = i+2)
+            skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = i+2, layerCount = len(self.features))
             if skipLayerActive:
                 self.skipConnections.append(skipMLP)
                 self.skipConnectionDicts.append(skipCfg)
@@ -431,13 +437,6 @@ class GraphNetwork(torch.nn.Module):
                 self.vertexMLPs.append(vMLP)
                 self.vertexMLPDicts.append(vMLPCfg)
                 
-            if self.edgeMLPProperties is not None:
-                newDict = copy.copy(self.edgeMLPProperties)   
-                newDict['inputFeatures'] = newDict['output']
-                self.edgeMLPs.append(buildMLPwDict(newDict))
-                if verbose:
-                    print(f'Layer[{i+2}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[i].parameters()])} parameters)')
-                self.edgeMLPDicts.append(newDict)
             if self.normalization != 'none':
                 outputFeatures = self.features[i+1] if self.vertexMLPProperties is None else self.vertexMLPDicts[-1]['output']
                 if self.normalization == 'layer':
@@ -447,11 +446,18 @@ class GraphNetwork(torch.nn.Module):
                     self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures + skipFeatureSize))
             
 
+        if self.edgeMLPProperties is not None:
+            newDict = copy.copy(self.edgeMLPProperties)   
+            newDict['inputFeatures'] = edge_dimensioniality
+            self.edgeMLPs.append(buildMLPwDict(newDict))
+            if verbose:
+                print(f'Layer[{len(layers)}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[-1].parameters()])} parameters)')
+            self.edgeMLPDicts.append(newDict)
 
         ### Last Layer        
         #   
         if len(layers) <= 2:
-            if self.skipConnectionMode == 'stack':
+            if self.skipConnectionMode == 'stack' or self.skipConnectionMode == 'cconv' :
                 currentFeatures = self.features[0] + (self.features[0] if boundaryFeatures != 0 else 0) + skipFeatureSize
             else:
                 currentFeatures = self.features[0] + (self.features[0] if boundaryFeatures != 0 else 0)
@@ -463,13 +469,13 @@ class GraphNetwork(torch.nn.Module):
             
         outputFeatures = self.features[-1] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
         if verbose:
-            print(f'Layer[{len(layers)}]:\t{currentFeatures} -> {outputFeatures} features')
+            print(f'Layer[{len(layers)}]: {currentFeatures} -> {outputFeatures} features')
         ### Convolution
         self.messageProcessors.append(BasisConvLayer(inputFeatures = currentFeatures, outputFeatures = outputFeatures, **self.messageLayerProperties))
         if verbose:
             print(f'Layer[{len(layers)}]:\tFluid Convolution: {self.messageProcessors[-1].inputFeatures} -> {self.messageProcessors[-1].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[-1].parameters()])} parameters)')
         ### Fully Connected Layer
-        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, outputFeatures, self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = len(layers))
+        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, outputFeatures, self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = len(layers), layerCount = len(self.features))
         if skipLayerActive:
             self.skipConnections.append(skipMLP)
             self.skipConnectionDicts.append(skipCfg)
@@ -487,7 +493,24 @@ class GraphNetwork(torch.nn.Module):
                 split = self.normalization.split('_')
                 self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures + skipFeatureSize))
 
+    def runEdgeMLP(self, edgeMLP, edgeMLPDict, edgeLengths, batches, numEdges, verbose = False, layer = 0, clamp = True, checkpoint = True):
+        if edgeMLP is None:
+            return edgeLengths
+        if verbose:
+            print(f'Layer[{layer}]:\tRunning Edge MLP {edgeMLPDict["inputFeatures"]} -> {edgeMLPDict["output"]} features')
 
+        newEdgeLengths = []
+        for b in range(batches):
+            transposedEdges = edgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *edgeLengths.shape[1:])
+            if checkpoint:
+                processedEdges = torch.utils.checkpoint.checkpoint(edgeMLP, transposedEdges, use_reentrant=False)
+            else:
+                processedEdges = edgeMLP(transposedEdges)
+            if clamp:
+                processedEdges = processedEdges.clamp(-1,1)
+            newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+        result = torch.cat(newEdgeLengths, dim = 0)
+        return result
 
     def forward(self, \
                 fluidFeatures, \
@@ -537,24 +560,30 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'(pre edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
 
-            newEdgeLengths = []
-            for b in range(batches):
-                transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
-                processedEdges = self.inputEdgeEncoder(transposedEdges)
-                processedEdges = processedEdges.clamp(-1,1)
-                newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
-            fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
+            fluidEdgeLengths = self.runEdgeMLP(self.inputEdgeEncoder, self.inputEdgeEncoderProperties, fluidEdgeLengths, batches, numEdges, verbose = False, layer = 0, clamp = True)
+
+            # newEdgeLengths = []
+            # for b in range(batches):
+            #     transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
+            #     processedEdges = self.inputEdgeEncoder(transposedEdges)
+            #     processedEdges = processedEdges.clamp(-1,1)
+            #     newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+            # fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
 
             if verbose:
                 print(f'(post edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
 
+        if self.edgeMLPProperties is not None:
+            fluidEdgeLengths = self.runEdgeMLP(self.edgeMLPs[0], self.edgeMLPDicts[0], fluidEdgeLengths, batches, numEdges, verbose = verbose, layer = 0, clamp = False)
+            
+
         if verbose:
             print(f'Layer[0]:\tConvolution (FTF): {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features [edge_dim = {self.messageProcessors[0].dim}]')
-        fluidConvolution = (self.messageProcessors[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights, batches=  batches, verbose  = False))
+        fluidConvolution, fluidMessages = (self.messageProcessors[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights, batches=  batches, verbose  = False))
         if self.hasBoundaryLayers:
             if verbose:
                 print(f'Layer[0]:\tConvolution (BTF) {self.messageProcessors[1].inputFeatures} -> {self.messageProcessors[1].outputFeatures} features')
-            boundaryConvolution = (self.messageProcessors[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights, batches=  batches))
+            boundaryConvolution, _ = (self.messageProcessors[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights, batches=  batches))
         else:
             boundaryConvolution = None
 
@@ -603,8 +632,14 @@ class GraphNetwork(torch.nn.Module):
         #         ans = torch.hstack((linearOutput, fluidConvolution))
         #     else:
         #         ans = fluidConvolution
+        if self.edgeMLPmode == 'message':
+            fluidEdgeLengths = fluidMessages
+            
         convolutions = torch.hstack((fluidConvolution, boundaryConvolution)) if self.hasBoundaryLayers else fluidConvolution
-        ans = torch.hstack((convolutions, fluidFeatures)) if self.vertexMLPProperties['vertexInput'] else convolutions
+        if self.vertexMLPProperties is not None:
+            ans = torch.hstack((convolutions, fluidFeatures)) if self.vertexMLPProperties['vertexInput'] else convolutions
+        else:
+            ans = convolutions
 
         if verbose:
             print(f'Layer[0]: Convolution Shape: {convolutions.shape} | ans Shape: {ans.shape}')
@@ -613,21 +648,8 @@ class GraphNetwork(torch.nn.Module):
         if verbose:
             print(f'Pre-Message Passing Done: {ans.shape}\n')
         
-        if self.edgeMLPProperties is not None:
-            if verbose:
-                print(f'Layer[0]:\tRunning Edge MLP {self.edgeMLPDicts[0]["inputFeatures"]} -> {self.edgeMLPDicts[0]["output"]} features')
-
-            newEdgeLengths = []
-            for b in range(batches):
-                transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
-
-                processedEdges = torch.utils.checkpoint.checkpoint(self.edgeMLPs[0], transposedEdges, use_reentrant = False)
-                # processedEdges = self.edgeMLPs[0](transposedEdges)
-                processedEdges = processedEdges.clamp(-1,1)
-                newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
-            fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
-            # fluidEdgeLengths = self.edgeMLPs[0](fluidEdgeLengths)
-            # fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
+        # if self.edgeMLPProperties is not None:
+            # fluidEdgeLengths = self.runEdgeMLP(self.edgeMLPs[0], self.edgeMLPDicts[0], fluidEdgeLengths, batches, numEdges, verbose = verbose, layer = 0, clamp = False)
         # print(self.vertexMLP)
         if self.vertexMLPProperties is not None:
             # print(f'Running Vertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features {ans.shape}')
@@ -647,8 +669,6 @@ class GraphNetwork(torch.nn.Module):
                 ans = torch.hstack((ans, skipLayerOutput))
             else:
                 ans = ans + skipLayerOutput
-        else:
-            skipLayerOutput = None
         
         if self.normalization != 'none':
             if verbose:
@@ -660,80 +680,60 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[{i}]:\tInput {ans.shape}')
             # print(f'Layer[{i}]:\tRelu: {ans.shape}')
-            ansc = self.relu(ans)
+            if self.activationOnNode:
+                ansc = self.relu(ans)
+            else:
+                ansc = ans
+                
+            if self.edgeMLPProperties is not None:
+                fluidEdgeLengths = self.runEdgeMLP(self.edgeMLPs[i], self.edgeMLPDicts[i], fluidEdgeLengths, batches, numEdges, verbose = verbose, layer = i, clamp = False)
+                # if verbose:
+                #     print(f'Layer[{i}]:\tRunning Edge MLP {self.edgeMLPDicts[i]["inputFeatures"]} -> {self.edgeMLPDicts[i]["output"]} features')
+                # newEdgeLengths = []
+                # for b in range(batches):
+                #     transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
+
+                #     # processedEdges = self.edgeMLPs[i](transposedEdges)
+                #     processedEdges = torch.utils.checkpoint.checkpoint(self.edgeMLPs[i], transposedEdges, use_reentrant = False)
+
+                #     processedEdges = processedEdges.clamp(-1,1)
+                #     newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
+                # fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
+
+                # fluidEdgeLengths = self.edgeMLPs[i](fluidEdgeLengths)
+                # fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
+                
             if verbose:
                 # print(f'Layer[{i}]:\tResult for layer {i-1} [min: {torch.min(ansc)}, max: {torch.max(ansc)}, mean: {torch.mean(ansc)}] | [min: {torch.min(ans)}, max: {torch.max(ans)}, mean: {torch.mean(ans)}]')
                 print(f'Layer[{i}]:\tRunning Convolution {self.messageProcessors[i].inputFeatures} -> {self.messageProcessors[i].outputFeatures} features [edge_dim = {self.messageProcessors[i].dim}]')
             # print(f'Layer[{i}]:\tConvolution: {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
-            ansConv = self.messageProcessors[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
-
-            # print(f'Layer[{i}]:\tLinear: {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].in_features} -> {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].out_features} features')
-            if self.fcLayerMLPProperties is not None:
-                if verbose:
-                # print(f'Layer[{i}]:\t\tResult [min: {torch.min(ansConv)}, max: {torch.max(ansConv)}, mean: {torch.mean(ansConv)}]')
-                    print(f'Layer[{i}]:\tRunning Linear {self.fcLayerMLPDicts[i - (1 if self.hasBoundaryLayers else 0)]["inputFeatures"]} -> {self.fcLayerMLPDicts[i - (1 if self.hasBoundaryLayers else 0)]["output"]} features') 
-                transposedFeatures = ansc.view(batches,-1, *ansc.shape[1:])
-                # ansDense = self.fcs[i - (1 if self.hasBoundaryLayers else 0)](transposedFeatures)
-                ansDense = torch.utils.checkpoint.checkpoint(self.fcs[i - (1 if self.hasBoundaryLayers else 0)], transposedFeatures, use_reentrant = False)
-                ansDense = ansDense.view(-1, *ansDense.shape[2:])
-            else:
-                ansDense = None
-            # if verbose:
-                # print(f'Layer[{i}]:\t\tResult [min: {torch.min(ansDense)}, max: {torch.max(ansDense)}, mean: {torch.mean(ansDense)}]')
+            ansConv, ansMessages = self.messageProcessors[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
             
-            if self.agglomerateViaMLP == False:
-                if verbose:
-                    print(f'Layer[{i}]:\tSumming {ans.shape} | {ansConv.shape} | {ansDense.shape if ansDense is not None else 0}')
-                if self.features[i- (2 if self.hasBoundaryLayers else 1)] == self.features[i-(1 if self.hasBoundaryLayers else 0)] and ans.shape == ansConv.shape:
-                    ans = ansConv + ans
-                else:
-                    ans = ansConv
-                if ansDense is not None:
-                    ans = ans + ansDense
+            if self.edgeMLPmode == 'message':
+                fluidEdgeLengths = ansMessages
+            if self.vertexMLPProperties is not None:
+                ans = torch.hstack((ansConv, ansc)) if self.vertexMLPProperties['vertexInput'] else ansConv
             else:
+                ans = ansConv
+
+            if self.vertexMLPProperties is not None:
+                # print(f'Running Vertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features {ans.shape}')
                 if verbose:
-                    print(f'Layer[{i}]:\tStacking {ans.shape} | {ansConv.shape} | {ansDense.shape if ansDense is not None else 0}')
-                if self.features[i- (2 if self.hasBoundaryLayers else 1)] == self.features[i-(1 if self.hasBoundaryLayers else 0)] and ans.shape == ansConv.shape:
-                    if ansDense is not None:
-                        ans_ = torch.hstack((ansConv, ansDense, ans))
-                    else:   
-                        ans_ = torch.hstack((ansConv, ans))
+                    print(f'Layer[0]:\tRunning Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features\n')
+                ans = runMLP(self.vertexMLPs[i], ans, batches, verbose = False)                
+                
+            skipLayerOutput = None
+            if self.skipConnectionMode != 'none':
+                if verbose:
+                    print(f'Layer[{i}]:\tLinear {self.skipConnectionDicts[i]["inputFeatures"]} -> {self.skipConnectionDicts[i]["output"]} features')
+                skipLayerOutput = runMLP(self.skipConnections[i], ansc, batches, verbose = False)
+                if self.skipConnectionMode == 'stack':
+                    ans = torch.hstack((ans, skipLayerOutput))
                 else:
-                    if ansDense is not None:
-                        ans_ = torch.hstack((ansConv, ansDense))
-                    else:
-                        ans_ = ansConv
-            if verbose: 
-                print(f'Layer[{i}]:\tans: {ans.shape if self.agglomerateViaMLP == False else ans_.shape}')
+                    ans = ans + skipLayerOutput
+            else:
+                skipLayerOutput = None
 
-            if self.edgeMLPProperties is not None and i < layers - 1:
-                if verbose:
-                    print(f'Layer[{i}]:\tRunning Edge MLP {self.edgeMLPDicts[i]["inputFeatures"]} -> {self.edgeMLPDicts[i]["output"]} features')
-                newEdgeLengths = []
-                for b in range(batches):
-                    transposedEdges = fluidEdgeLengths[numEdges[b]:numEdges[b+1]].view(1,-1, *fluidEdgeLengths.shape[1:])
-
-                    # processedEdges = self.edgeMLPs[i](transposedEdges)
-                    processedEdges = torch.utils.checkpoint.checkpoint(self.edgeMLPs[i], transposedEdges, use_reentrant = False)
-
-                    processedEdges = processedEdges.clamp(-1,1)
-                    newEdgeLengths.append(processedEdges.view(-1, *processedEdges.shape[2:]))
-                fluidEdgeLengths = torch.cat(newEdgeLengths, dim = 0)
-
-                # fluidEdgeLengths = self.edgeMLPs[i](fluidEdgeLengths)
-                # fluidEdgeLengths = fluidEdgeLengths.clamp(-1,1)
-            if self.vertexMLPProperties is not None:# and i < layers:# - 1:
-                # print(f'Layer[{i}]:\tRunning Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features')
-
-                if verbose:
-                    print(f'Layer[{i}]:\tRunning Vertex MLP {self.vertexMLPDicts[i]["inputFeatures"]} -> {self.vertexMLPDicts[i]["output"]} features')
-                if self.agglomerateViaMLP:
-                    ans = ans_
-                # print(ans.shape)
-                transposedFeatures = ans.view(batches,-1, *ans.shape[1:])
-                ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[i], transposedFeatures, use_reentrant = False)
-                # ans = self.vertexMLPs[i](transposedFeatures)
-                ans = ans.view(-1, *ans.shape[2:])
 
             if self.normalization != 'none':
                 if verbose:

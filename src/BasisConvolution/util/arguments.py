@@ -58,6 +58,7 @@ parser.add_argument('--optimizeWeights', type = bool, default = argparse.SUPPRES
 parser.add_argument('--exponentialDecay', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Exponential decay [default = True]')
 parser.add_argument('--initializer', type = str, default = argparse.SUPPRESS, help='Initializer [default = "uniform"]')
 parser.add_argument('--loss', type = str, default = argparse.SUPPRESS, help='Loss function [default = "mse"]')
+parser.add_argument('--historyLength', type = int, default = argparse.SUPPRESS, help='History length [default = 1]')
 
 parser.add_argument('--unrollIncrement', type = int, default = argparse.SUPPRESS, help='Unroll increment [default = 100]')
 

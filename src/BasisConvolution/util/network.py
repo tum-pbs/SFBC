@@ -62,17 +62,18 @@ def buildModel(hyperParameterDict, verbose = False):
         coordinateMapping=coordinateMapping, windowFn = windowFunction, 
 
         vertexMLP = vertexMLP, #layerMode = 'stack', 
-        edgeMLP = edgeMLP, edgeMode = 'message',
+        edgeMLP = edgeMLP, edgeMode = hyperParameterDict['edgeMode'],
         
         outputDecoder = outputDecoder, inputEncoder = inputEncoder, 
         
-        skipLayerMLP = fcMLP, skipLayerMode = 'linear', skipConnectionMode = 'add',
+        skipLayerMLP = fcMLP, skipLayerMode = hyperParameterDict['skipLayerMode'], skipConnectionMode = hyperParameterDict['skipConnectionMode'],
          
         verbose = verbose,
 
         inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder, normalization=normalization,
 
-        convLayer = convLayerDict, messageMLP = hyperParameterDict['messageMLP']
+        convLayer = convLayerDict, messageMLP = hyperParameterDict['messageMLP'],
+        activationOnNode = hyperParameterDict['activationOnNode']
     )
     # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 
@@ -80,6 +81,9 @@ def buildModel(hyperParameterDict, verbose = False):
 
     parameterCount = count_parameters(model)
     hyperParameterDict['parameterCount'] = parameterCount
+    hyperParameterDict['progressLabel'] += f'[{parameterCount:7d}]'
+    hyperParameterDict['shortLabel'] += f'[{parameterCount:7d}]'
+    hyperParameterDict['exportLabel'] += f'[{parameterCount:7d}]'
 
     chosenOptimizer = hyperParameterDict['optimizer']
     if chosenOptimizer == 'adam':
