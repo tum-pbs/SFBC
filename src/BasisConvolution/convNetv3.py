@@ -71,16 +71,90 @@ def applyNorm(norm, batches, features):
     normOutput = normOutput.view(-1, *normOutput.shape[2:])   
     return normOutput  
 
+def buildSkipConnection(currentFeatures, nextFeatures, skipConnectionMode, skipLayerMode, skipConnectionProperties, verbose = False, layer = 1):
+        if skipConnectionMode != 'none':
+            if skipLayerMode == 'mlp':
+                newDict = copy.copy(skipConnectionProperties)
+                newDict['inputFeatures'] = currentFeatures
+                newDict['output'] = nextFeatures
+                mlp = buildMLPwDict(newDict)
+                cfg = newDict
+                if verbose:
+                    print(f'Layer[{layer}]:\tLinear: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in mlp.parameters()])} parameters)')
+                skipFeatureSize = nextFeatures
+            elif skipLayerMode == 'linear':
+                newDict = {
+                    'inputFeatures': currentFeatures,
+                    'output': nextFeatures,
+                    'bias': False,
+                    'gain': 1,
+                    'norm': False,
+                    'activation': 'none',
+                    'preNorm': False,
+                    'postNorm': False,
+                    'noLinear': False,
+                    'layout': []
+                }
+                mlp = buildMLPwDict(newDict)
+                cfg = newDict
+                if verbose:
+                    print(f'Layer[{layer}]:\tLinear: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in mlp.parameters()])} parameters)')
+                skipFeatureSize = nextFeatures
+            else:
+                skipFeatureSize = currentFeatures
+                mlp = None
+                cfg = None
+        else:
+            skipFeatureSize = 0
+            mlp = None
+            cfg = None
+        return mlp is not None, mlp, cfg, skipFeatureSize
+
+def buildVertexMLP(previousFeatures, currentFeatures, nextFeatures, vertexMLPProperties, verbose = False, layer = 1):        
+    if vertexMLPProperties is not None:
+        newDict = copy.copy(vertexMLPProperties)
+
+        vMLPinputs = currentFeatures
+        if vertexMLPProperties['vertexInput']:
+            vMLPinputs += previousFeatures
+
+        newDict['inputFeatures'] = vMLPinputs
+        newDict['output'] = nextFeatures
+        mlp = buildMLPwDict(newDict)
+        if verbose:
+            print(f'Layer[{layer}]:\tVertex MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in mlp.parameters()])} parameters)')
+        cfg = newDict
+
+        return True, mlp, cfg
+        # currentFeatures = self.features[0]
+    else:
+        return False, None, None
+        # if self.vertexMLPmode == 'stack':
+        #     currentFeatures = self.features[0] + (self.features[0] if boundaryFeatures != 0 else 0) + skipFeatureSize
+        # else:
+        #     currentFeatures = self.features[0]
+
 class GraphNetwork(torch.nn.Module):
-    def __init__(self, fluidFeatures, boundaryFeatures = 0, dim = 2, layers = [32,64,64,2], activation = 'relu',
-                coordinateMapping = 'cartesian', windowFn = None, batchSize = 32, outputScaling = 1/128, 
-                vertexMLP = None,
-                edgeMLP = None,
+    def __init__(self, fluidFeatures, boundaryFeatures = 0, dim = 2, layers = [32,64,64,2], 
+                 
+                 activation = 'relu', coordinateMapping = 'cartesian', windowFn = None, 
+                 
+                 batchSize = 32, outputScaling = 1/128, 
+
                 inputEncoder = None,
                 inputEdgeEncoder = None,
                 outputDecoder = None,
-                fcLayerMLP = None,
                 basisEncoder = None,
+
+                vertexMLP = None,
+
+                edgeMLP = None,
+                edgeMode = 'none', # 'none' | 'message' | 'mlp'
+
+                skipLayerMLP = None,
+                skipLayerMode = 'none', # 'none' | 'mlp' | 'linear'
+                skipConnectionMode = 'stack', # 'nonde' | 'stack' | 'add'
+
                 convLayer = {
                     'basisFunction': 'linear',
                     'basisTerms': 4,
@@ -93,17 +167,22 @@ class GraphNetwork(torch.nn.Module):
                     'exponentialDecay': False,
                     'mode': 'conv'
                 },
+                messageMLP = None,
+
                 outputBias = True,
                 centerIgnore = False,
+
                 normalization = 'none',
                 verbose = False):
         super().__init__()
         self.features = copy.copy(layers)
 
-        self.convs = torch.nn.ModuleList()
-        self.fcs = torch.nn.ModuleList()
+        self.messageProcessors = torch.nn.ModuleList()
+        self.skipConnections = torch.nn.ModuleList()
+
         self.vertexMLPs = torch.nn.ModuleList()
         self.edgeMLPs = torch.nn.ModuleList()
+
         self.inputEncoder = None
         self.inputEdgeEncoder = None
         self.outputDecoder = None
@@ -117,52 +196,59 @@ class GraphNetwork(torch.nn.Module):
         self.outputScaling = outputScaling
         self.centerIgnore = centerIgnore
 
+        self.messageMLPProperties = messageMLP
+        self.messageLayerProperties = convLayer
+
         self.inputEncoderProperties = inputEncoder
-        self.basisEncoderProperties = basisEncoder
         self.inputEdgeEncoderProperties = inputEdgeEncoder
+        self.basisEncoderProperties = basisEncoder
         self.outputDecoderProperties = outputDecoder
+
         self.vertexMLPProperties = vertexMLP
+        # self.vertexMLPmode = layerMode
+
         self.edgeMLPProperties = edgeMLP
-        self.fcLayerMLPProperties = fcLayerMLP
-        self.convLayerProperties = convLayer
+        self.edgeMLPmode = edgeMode
+
+        self.skipConnectionProperties = skipLayerMLP
+        self.skipLayerMode = skipLayerMode
+        self.skipConnectionMode = skipConnectionMode
+
+
         self.normalization = normalization
         self.normalizationLayers = torch.nn.ModuleList()
 
-        if 'dim' not in self.convLayerProperties and self.inputEncoderProperties is None:
-            self.convLayerProperties['dim'] = dim
+        if self.messageMLPProperties is not None:
+            if self.messageMLPProperties['activation'] == 'default':
+                self.messageMLPProperties['activation'] = activation
+            self.messageLayerProperties['mlpProperties'] = self.messageMLPProperties
+
+        if 'dim' not in self.messageLayerProperties and self.inputEncoderProperties is None:
+            self.messageLayerProperties['dim'] = dim
 
         self.vertexMLPDicts = []
         self.edgeMLPDicts = []
-        self.fcLayerMLPDicts = []
-        self.fcLayerMLP = fcLayerMLP
-        self.agglomerateViaMLP = False
+        self.skipConnectionDicts = []
+
+        edge_dimensioniality = dim
 
         ### ----------------------------------------------------------------------------------- ###
         ### Build Input Vertex Encoder
         if self.inputEncoderProperties is not None:
+            # Default to fluid features if not set both for input and output
             if 'inputFeatures' not in self.inputEncoderProperties:
                 self.inputEncoderProperties['inputFeatures'] = fluidFeatures
             if 'output' not in self.inputEncoderProperties:
                 self.inputEncoderProperties['output'] = fluidFeatures
+
             self.inputEncoder = buildMLPwDict(self.inputEncoderProperties)
             if self.inputEncoderProperties['output'] != fluidFeatures:
                 if self.inputEncoderProperties['noLinear']:
                     raise ValueError(f'Input encoder must have a linear layer if shapes change: {self.inputEncoderProperties}')
             if verbose:
-                print(f'Input Encoder: {self.inputEncoderProperties["inputFeatures"]} -> {self.inputEncoderProperties["output"]} features')
+                print(f'Input Encoder: {self.inputEncoderProperties["inputFeatures"]} -> {self.inputEncoderProperties["output"]} features ({sum([p.numel() for p in self.inputEncoder.parameters()])} parameters)')
 
-        ### Build Input Edge Encoder
-        if self.inputEdgeEncoderProperties is not None:
-            if 'inputFeatures' not in self.inputEdgeEncoderProperties:
-                self.inputEdgeEncoderProperties['inputFeatures'] = dim
-            if 'output' not in self.inputEdgeEncoderProperties:
-                self.inputEdgeEncoderProperties['output'] = dim
-            self.inputEdgeEncoder = buildMLPwDict(self.inputEdgeEncoderProperties)
-            if 'dim' not in self.convLayerProperties:
-                self.convLayerProperties['dim'] = self.inputEdgeEncoderProperties['output']
-            if verbose:
-                print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features')
-
+        # Fourier Features
         if self.basisEncoderProperties is not None:
             terms = self.basisEncoderProperties['basisTerms']
             mode = self.basisEncoderProperties['mode']
@@ -177,9 +263,22 @@ class GraphNetwork(torch.nn.Module):
                 edge_dimensioniality = terms
             else:
                 raise ValueError(f'Unknown mode: {mode}')
-        else:
-            edge_dimensioniality = dim if self.inputEdgeEncoder is None else self.inputEdgeEncoderProperties['output']
-        self.convLayerProperties['dim'] = edge_dimensioniality
+
+                ### Build Input Edge Encoder
+        if self.inputEdgeEncoderProperties is not None:
+            # Default to spatial features if not set both for input and output
+            self.inputEdgeEncoderProperties['inputFeatures'] = edge_dimensioniality
+
+            if 'output' not in self.inputEdgeEncoderProperties:
+                self.inputEdgeEncoderProperties['output'] = dim
+            self.inputEdgeEncoder = buildMLPwDict(self.inputEdgeEncoderProperties)
+            # Update the dimensionality of the convolution layer
+            if 'dim' not in self.messageLayerProperties:
+                edge_dimensioniality = self.inputEdgeEncoderProperties['output']
+            if verbose:
+                print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features ({sum([p.numel() for p in self.inputEdgeEncoder.parameters()])} parameters)')
+
+        self.messageLayerProperties['dim'] = edge_dimensioniality
 
         ### ----------------------------------------------------------------------------------- ###\
         ### Build Output Decoder
@@ -188,218 +287,205 @@ class GraphNetwork(torch.nn.Module):
                 self.outputDecoderProperties['output'] = self.features[-1]
             if 'inputFeatures' not in self.outputDecoderProperties:
                 self.outputDecoderProperties['inputFeatures'] = self.features[-1]
-                if self.fcLayerMLPProperties is not None and self.vertexMLPProperties is None:
-                    self.outputDecoderProperties['inputFeatures'] += self.features[-1]
-
                 self.features[-1] = self.outputDecoderProperties['inputFeatures']
             else:
                 self.features[-1] = self.outputDecoderProperties['inputFeatures']
 
             self.outputDecoder = buildMLPwDict(self.outputDecoderProperties)
             if verbose:
-                print(f'Output Decoder: {self.outputDecoderProperties["inputFeatures"]} -> {self.outputDecoderProperties["output"]} features')
+                print(f'Output Decoder: {self.outputDecoderProperties["inputFeatures"]} -> {self.outputDecoderProperties["output"]} features ({sum([p.numel() for p in self.outputDecoder.parameters()])} parameters)')
 
 
-        ### ----------------------------------------------------------------------------------- ###
-        ### Single Layer Case
-        inputFeatures = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
-        if len(self.features) == 1:
-            outputFeatures = self.features[0] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
-            if verbose:
-                print(f'Running SINGLE Convolution {inputFeatures} -> {outputFeatures} features')
+        # ### ----------------------------------------------------------------------------------- ###
+        # ### Single Layer Case
+        # inputFeatures = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
+        # if len(self.features) == 1:
+        #     outputFeatures = self.features[0] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
+        #     if verbose:
+        #         print(f'Running SINGLE Convolution {inputFeatures} -> {outputFeatures} features')
 
-            self.convs.append(BasisConvLayer(inputFeatures=inputFeatures, outputFeatures=outputFeatures, **self.convLayerProperties))
-            if verbose: 
-                print(f'Layer[0]:\tFluid Convolution: {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
-            if boundaryFeatures != 0:
-                self.convs.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures=outputFeatures, **self.convLayerProperties))
-                if verbose:
-                    print(f'Layer[0]:\tBoundary Convolution: {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')   
+        #     self.convs.append(BasisConvLayer(inputFeatures=inputFeatures, outputFeatures=outputFeatures, **self.convLayerProperties))
+        #     if verbose: 
+        #         print(f'Layer[0]:\tFluid Convolution: {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
+        #     if boundaryFeatures != 0:
+        #         self.convs.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures=outputFeatures, **self.convLayerProperties))
+        #         if verbose:
+        #             print(f'Layer[0]:\tBoundary Convolution: {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')   
 
-            if self.fcLayerMLPProperties is not None:
-                newDict = copy.copy(fcLayerMLP)
-                newDict['inputFeatures'] = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
-                newDict['output'] = self.features[0]
-                self.fcs.append(buildMLPwDict(newDict))    
-                self.fcLayerMLPDicts.append(newDict)
-                if verbose:
-                    print(f'Layer[0]:\tLinear: {newDict}')
-            if self.vertexMLPProperties is not None:
-                # print(f'Layer[0]:\tVertex MLP: {self.vertexMLPProperties}')
+        #     if self.fcLayerMLPProperties is not None:
+        #         newDict = copy.copy(fcLayerMLP)
+        #         newDict['inputFeatures'] = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
+        #         newDict['output'] = self.features[0]
+        #         self.fcs.append(buildMLPwDict(newDict))    
+        #         self.fcLayerMLPDicts.append(newDict)
+        #         if verbose:
+        #             print(f'Layer[0]:\tLinear: {newDict}')
+        #     if self.vertexMLPProperties is not None:
+        #         # print(f'Layer[0]:\tVertex MLP: {self.vertexMLPProperties}')
 
-                vMLPinputs = self.features[0] if boundaryFeatures == 0 else 2 * self.features[0]
-                if self.fcLayerMLPProperties is not None:
-                    vMLPinputs += self.features[0]
+        #         vMLPinputs = self.features[0] if boundaryFeatures == 0 else 2 * self.features[0]
+        #         if self.fcLayerMLPProperties is not None:
+        #             vMLPinputs += self.features[0]
 
-                # print(f'vMLPinputs: {vMLPinputs} ({self.features[0]} | {boundaryFeatures} | {self.fcLayerMLPProperties})')
+        #         # print(f'vMLPinputs: {vMLPinputs} ({self.features[0]} | {boundaryFeatures} | {self.fcLayerMLPProperties})')
 
-                newDict = copy.copy(self.vertexMLPProperties)
-                newDict['inputFeatures'] = vMLPinputs
-                newDict['output'] = outputFeatures
-                self.vertexMLPs.append(buildMLPwDict(newDict))
-                self.vertexMLPDicts.append(newDict)
-                if verbose:
-                    print(f'Layer[0]:\tVertex MLP: {newDict}')
-            if self.outputDecoder is not None:
-                if self.normalization != 'none':
-                    if self.normalization == 'layer':
-                        self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
-                    elif 'group' in self.normalization:
-                        split = self.normalization.split('_')
-                        self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
-                # self.normalizationLayers.append()
+        #         newDict = copy.copy(self.vertexMLPProperties)
+        #         newDict['inputFeatures'] = vMLPinputs
+        #         newDict['output'] = outputFeatures
+        #         self.vertexMLPs.append(buildMLPwDict(newDict))
+        #         self.vertexMLPDicts.append(newDict)
+        #         if verbose:
+        #             print(f'Layer[0]:\tVertex MLP: {newDict}')
+        #     if self.outputDecoder is not None:
+        #         if self.normalization != 'none':
+        #             if self.normalization == 'layer':
+        #                 self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+        #             elif 'group' in self.normalization:
+        #                 split = self.normalization.split('_')
+        #                 self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
+        #         # self.normalizationLayers.append()
 
-            return
+        #     return
 
         ### ----------------------------------------------------------------------------------- ###
         ### Multi Layer Case
 
         ### First Layer
+        if verbose:
+            print('---------------------------------------------------------------------------------------\nBuilding first layer')
+        currentFeatures = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
 
-        self.convs.append(BasisConvLayer(inputFeatures=inputFeatures, outputFeatures= self.features[0], **self.convLayerProperties))
+        self.messageProcessors.append(BasisConvLayer(inputFeatures=currentFeatures, outputFeatures= self.features[0], **self.messageLayerProperties))
         if verbose: 
-            print(f'Layer[{1}]:\tFluid Convolution: {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features')
+            print(f'Layer[{1}]:\tFluid Convolution: {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[0].parameters()])} parameters)')
         if boundaryFeatures != 0:
-            self.convs.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures= self.features[0],**self.convLayerProperties ))
+            self.messageProcessors.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures= self.features[0],**self.messageLayerProperties ))
             if verbose:
-                print(f'Layer[{1}]:\tBoundary Convolution: {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')
+                print(f'Layer[{1}]:\tBoundary Convolution: {self.messageProcessors[1].inputFeatures} -> {self.messageProcessors[1].outputFeatures} features')
 
-        if self.fcLayerMLPProperties is not None:
-            newDict = copy.copy(fcLayerMLP)
-            newDict['inputFeatures'] = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
-            newDict['output'] = self.features[0]
-            self.fcLayerMLPDicts.append(newDict)
-            self.fcs.append(buildMLPwDict(newDict))    
-            if verbose:
-                print(f'Layer[{1}]:\tLinear: {newDict}')
-        if self.vertexMLPProperties is not None:
-            newDict = copy.copy(self.vertexMLPProperties)
+        if self.edgeMLPmode == 'message':
+            edge_dimensioniality = self.features[0]
 
-            vMLPinputs = fluidFeatures if self.inputEncoder is None else self.inputEncoderProperties['output']
-            if self.fcLayerMLPProperties is not None:
-                vMLPinputs = 3 * self.features[0] if boundaryFeatures != 0 else self.features[0] * 2
-            else:
-                vMLPinputs = 2 * self.features[0] if boundaryFeatures != 0 else self.features[0] * 1
+        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = 1)
+        if skipLayerActive:
+            self.skipConnections.append(skipMLP)
+            self.skipConnectionDicts.append(skipCfg)
 
-            newDict['inputFeatures'] = vMLPinputs
-            newDict['output'] = newDict['inputFeatures'] if 'outputFeatures' not in newDict else newDict['outputFeatures']
-            if verbose:
-                print(f'Layer[{1}]:\tVertex MLP: {newDict}')
-            self.vertexMLPs.append(buildMLPwDict(newDict))
-            self.vertexMLPDicts.append(newDict)
+        vMLPActive, vMLP, vMLPCfg = buildVertexMLP(currentFeatures, self.features[0] * (1 if boundaryFeatures == 0 else 2), self.features[0], self.vertexMLPProperties, verbose = verbose, layer = 1)
+        if vMLPActive:
+            self.vertexMLPs.append(vMLP)
+            self.vertexMLPDicts.append(vMLPCfg)
+                
         if self.edgeMLPProperties is not None:
             newDict = copy.copy(self.edgeMLPProperties)   
-            newDict['inputFeatures'] = edge_dimensioniality
-            if verbose:
-                print(f'Layer[{1}]:\tEdge MLP: {newDict}')         
+            newDict['inputFeatures'] = edge_dimensioniality        
+            if newDict['output'] == -1:
+                newDict['output'] = edge_dimensioniality
+            else:
+                edge_dimensioniality = newDict['output']
             self.edgeMLPs.append(buildMLPwDict(newDict))
+            if verbose:
+                print(f'Layer[{1}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[0].parameters()])} parameters)') 
             self.edgeMLPDicts.append(newDict)
 
-        if self.normalization != 'none':            
-            inputFeatures = 2 * self.features[0] if boundaryFeatures != 0 else 1 * self.features[0]
-            if self.fcLayerMLPProperties is not None:
-                inputFeatures += self.features[0]
+        if self.normalization != 'none':    
+            # inputFeatures = currentFeatures
             if self.normalization == 'layer':
-                self.normalizationLayers.append(nn.LayerNorm(inputFeatures))
+                self.normalizationLayers.append(nn.LayerNorm(self.features[0] + skipFeatureSize))
             elif 'group' in self.normalization:
                 split = self.normalization.split('_')
-                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), inputFeatures))
+                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), self.features[0] + skipFeatureSize))
+        if verbose:
+            print('---------------------------------------------------------------------------------------\nBuilding middle layers')
 
         ### Middle Layers
         for i, l in enumerate(self.features[1:-1]):
             # if verbose:
                 # print(f'Layer[{i+2}]:\t{self.features[i]} -> {self.features[i+1]} features')
-            inputFeatures = (2 * self.features[0] if boundaryFeatures != 0 else 1 * self.features[0]) if i == 0 else self.features[i]
-            if i == 0 and self.fcLayerMLPProperties is not None:
-                inputFeatures += self.features[0]
+            if self.skipConnectionMode == 'stack':
+                currentFeatures = self.features[i] + (self.features[0] if boundaryFeatures != 0 and i == 0 else 0) + skipFeatureSize
+            else:
+                currentFeatures = self.features[i] + (self.features[0] if boundaryFeatures != 0 and i == 0 else 0)
 
-            if self.vertexMLPProperties is not None:
-                inputFeatures = newDict['output']
             if verbose:
-                print(f'Layer[{i+2}]:\t{inputFeatures} -> {self.features[i+1]} features')
+                print(f'Layer[{i+2}]: {currentFeatures} -> {self.features[i+1]} features')
             ### Convolution
-            self.convLayerProperties['dim'] = edge_dimensioniality# dim if self.edgeMLPProperties is None else self.edgeMLPProperties['output']
-            self.convs.append(BasisConvLayer(
-                inputFeatures = inputFeatures, 
+            self.messageLayerProperties['dim'] = edge_dimensioniality# dim if self.edgeMLPProperties is None else self.edgeMLPProperties['output']
+            self.messageProcessors.append(BasisConvLayer(
+                inputFeatures = currentFeatures, 
                 outputFeatures = self.features[i+1],
-                **self.convLayerProperties))
+                **self.messageLayerProperties))
             if verbose:
-                print(f'Layer[{i+2}]:\tFluid Convolution: {self.convs[i+1].inputFeatures} -> {self.convs[i+1].outputFeatures} features')
+                print(f'Layer[{i+2}]:\tFluid Convolution: {self.messageProcessors[i+1].inputFeatures} -> {self.messageProcessors[i+1].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[i+1].parameters()])} parameters)')
+
             ### Fully Connected Layer
-            if self.fcLayerMLPProperties is not None:
-                newDict = copy.copy(fcLayerMLP)
-                newDict['inputFeatures'] = (3 * self.features[0] if boundaryFeatures != 0 else 2 * self.features[0]) if i == 0 else self.features[i]
-                newDict['output'] =self.features[i+1]
-                if verbose:
-                    print(f'Layer[{i+2}]:\tLinear: {newDict}')
-                self.fcs.append(buildMLPwDict(newDict))
-                self.fcLayerMLPDicts.append(newDict)
+
+            skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = i+2)
+            if skipLayerActive:
+                self.skipConnections.append(skipMLP)
+                self.skipConnectionDicts.append(skipCfg)
+
             ### Vertex MLP
-            if self.vertexMLPProperties is not None:
-                newDict = copy.copy(self.vertexMLPProperties)
-                agglomerateViaMLP = 'agglomerate' in newDict and newDict['agglomerate']
-                self.agglomerateViaMLP = agglomerateViaMLP
-                newDict['inputFeatures'] = self.features[i+1]
-                newDict['output'] = self.features[i+1] 
-                newDict['inputFeatures'] = self.features[i+1] + (self.features[i+1] + (self.features[i+1] if self.features[i+0] == self.features[i+1] and i > 0 else 0) if agglomerateViaMLP else 0) 
-                if verbose:
-                    print(f'Layer[{i+2}]:\tVertex MLP: {newDict}')
-                self.vertexMLPs.append(buildMLPwDict(newDict))
-                self.vertexMLPDicts.append(newDict)
+            vMLPActive, vMLP, vMLPCfg = buildVertexMLP(currentFeatures, self.features[i+1], self.features[i+1], self.vertexMLPProperties, verbose = verbose, layer = i+2)
+            if vMLPActive:
+                self.vertexMLPs.append(vMLP)
+                self.vertexMLPDicts.append(vMLPCfg)
+                
             if self.edgeMLPProperties is not None:
                 newDict = copy.copy(self.edgeMLPProperties)   
                 newDict['inputFeatures'] = newDict['output']
-                if verbose:
-                    print(f'Layer[{i+2}]:\tEdge MLP: {newDict}')
                 self.edgeMLPs.append(buildMLPwDict(newDict))
+                if verbose:
+                    print(f'Layer[{i+2}]:\tEdge MLP: {newDict["inputFeatures"]} -> {newDict["output"]} ({sum([p.numel() for p in self.edgeMLPs[i].parameters()])} parameters)')
                 self.edgeMLPDicts.append(newDict)
             if self.normalization != 'none':
                 outputFeatures = self.features[i+1] if self.vertexMLPProperties is None else self.vertexMLPDicts[-1]['output']
                 if self.normalization == 'layer':
-                    self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+                    self.normalizationLayers.append(nn.LayerNorm(outputFeatures + skipFeatureSize))
                 elif 'group' in self.normalization:
                     split = self.normalization.split('_')
-                    self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
+                    self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures + skipFeatureSize))
+            
 
 
-        ### Last Layer            
-        inputFeatures = self.features[-2] if len(layers) > 2 else (2 * self.features[0] if boundaryFeatures != 0 else 1 * self.features[0]) + (self.features[0] if self.fcLayerMLPProperties is not None else 0)
+        ### Last Layer        
+        #   
+        if len(layers) <= 2:
+            if self.skipConnectionMode == 'stack':
+                currentFeatures = self.features[0] + (self.features[0] if boundaryFeatures != 0 else 0) + skipFeatureSize
+            else:
+                currentFeatures = self.features[0] + (self.features[0] if boundaryFeatures != 0 else 0)
+        else:
+            if self.skipConnectionMode == 'stack':
+                currentFeatures = self.features[-2] + (self.features[0] if boundaryFeatures != 0 else 0) + skipFeatureSize
+            else:
+                currentFeatures = self.features[-2] + (self.features[0] if boundaryFeatures != 0 else 0)
+            
         outputFeatures = self.features[-1] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
         if verbose:
-            print(f'Layer[-1]:\t{inputFeatures} -> {outputFeatures} features')
+            print(f'Layer[{len(layers)}]:\t{currentFeatures} -> {outputFeatures} features')
         ### Convolution
-        self.convs.append(BasisConvLayer(inputFeatures = inputFeatures, outputFeatures = outputFeatures, **self.convLayerProperties))
+        self.messageProcessors.append(BasisConvLayer(inputFeatures = currentFeatures, outputFeatures = outputFeatures, **self.messageLayerProperties))
         if verbose:
-            print(f'Layer[-1]:\tFluid Convolution: {self.convs[-1].inputFeatures} -> {self.convs[-1].outputFeatures} features')
+            print(f'Layer[{len(layers)}]:\tFluid Convolution: {self.messageProcessors[-1].inputFeatures} -> {self.messageProcessors[-1].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[-1].parameters()])} parameters)')
         ### Fully Connected Layer
-        if self.fcLayerMLPProperties is not None:
-            newDict = copy.copy(fcLayerMLP)
-            newDict['inputFeatures'] = self.features[-2] if len(layers) > 2 else (3 * self.features[0] if boundaryFeatures != 0 else 2 * self.features[0])
-            newDict['output'] = self.features[-1] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
-            newDict['bias'] = outputBias
-            if verbose:
-                print(f'Layer[-1]:\tLinear: {newDict}')
-            self.fcs.append(buildMLPwDict(newDict))
-            self.fcLayerMLPDicts.append(newDict)
+        skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, outputFeatures, self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = len(layers))
+        if skipLayerActive:
+            self.skipConnections.append(skipMLP)
+            self.skipConnectionDicts.append(skipCfg)
         ### Vertex MLP
-        if self.vertexMLPProperties is not None:
-            newDict = copy.copy(self.vertexMLPProperties)
-            inFeat = self.features[-1] if self.outputDecoder is None else self.outputDecoderProperties['inputFeatures']
-            newDict['inputFeatures'] = inFeat
-            newDict['output'] = inFeat 
-            newDict['inputFeatures'] = inFeat + (inFeat + (self.features[i+2] if self.features[i+1] == self.features[i+2] and i > 0 else 0)if agglomerateViaMLP else 0) 
-            if verbose:
-                print(f'Layer[-1]:\tVertex MLP: {newDict}')
-            self.vertexMLPs.append(buildMLPwDict(newDict))
-            self.vertexMLPDicts.append(newDict)
+        vMLPActive, vMLP, vMLPCfg = buildVertexMLP(currentFeatures, outputFeatures, outputFeatures, self.vertexMLPProperties, verbose = verbose, layer = len(layers))
+        if vMLPActive:
+            self.vertexMLPs.append(vMLP)
+            self.vertexMLPDicts.append(vMLPCfg)
 
         if self.normalization != 'none' and self.outputDecoder is not None:
             outputFeatures = self.features[-1] if self.vertexMLPProperties is None else self.vertexMLPDicts[-1]['output']
             if self.normalization == 'layer':
-                self.normalizationLayers.append(nn.LayerNorm(outputFeatures))
+                self.normalizationLayers.append(nn.LayerNorm(outputFeatures + skipFeatureSize))
             elif 'group' in self.normalization:
                 split = self.normalization.split('_')
-                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures))
+                self.normalizationLayers.append(nn.GroupNorm(int(split[1]), outputFeatures + skipFeatureSize))
 
 
 
@@ -437,6 +523,16 @@ class GraphNetwork(torch.nn.Module):
             fluidFeatures = runMLP(self.inputEncoder, fluidFeatures, batches, verbose = False)
             if verbose:
                 print(f'(post encoder) fluidFeatures: {fluidFeatures.shape}')
+                
+        if self.basisEncoderProperties is not None:
+            if verbose:
+                print(f'(pre basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+
+            fluidEdgeLengths = basisEncoderLayer(fluidEdgeLengths, self.basisEncoderProperties['basisTerms'], self.basisEncoderProperties['basisFunction'], self.basisEncoderProperties['mode'])
+
+            if verbose:
+                print(f'(post basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
+
         if self.inputEdgeEncoder is not None:
             if verbose:
                 print(f'(pre edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
@@ -451,78 +547,68 @@ class GraphNetwork(torch.nn.Module):
 
             if verbose:
                 print(f'(post edge encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
-        if self.basisEncoderProperties is not None:
-            if verbose:
-                print(f'(pre basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
-
-            fluidEdgeLengths = basisEncoderLayer(fluidEdgeLengths, self.basisEncoderProperties['basisTerms'], self.basisEncoderProperties['basisFunction'], self.basisEncoderProperties['mode'])
-
-            if verbose:
-                print(f'(post basis encoder) fluidEdgeLengths: {fluidEdgeLengths.shape}')
 
         if verbose:
-            print(f'Layer[0]:\tConvolution (FTF): {self.convs[0].inputFeatures} -> {self.convs[0].outputFeatures} features [edge_dim = {self.convs[0].dim}]')
-        fluidConvolution = (self.convs[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights, batches=  batches, verbose  = False))
+            print(f'Layer[0]:\tConvolution (FTF): {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features [edge_dim = {self.messageProcessors[0].dim}]')
+        fluidConvolution = (self.messageProcessors[0]((fluidFeatures, fluidFeatures), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights, batches=  batches, verbose  = False))
         if self.hasBoundaryLayers:
             if verbose:
-                print(f'Layer[0]:\tConvolution (BTF) {self.convs[1].inputFeatures} -> {self.convs[1].outputFeatures} features')
-            boundaryConvolution = (self.convs[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights, batches=  batches))
-        if self.fcLayerMLPProperties is not None:
-            if verbose:
-                print(f'Layer[0]:\tLinear {self.fcLayerMLPDicts[0]["inputFeatures"]} -> {self.fcLayerMLPDicts[0]["output"]} features')
-
-
-            transposedFeatures = fluidFeatures.view(batches,-1, *fluidFeatures.shape[1:])
-
-            linearOutput = torch.utils.checkpoint.checkpoint(self.fcs[0], transposedFeatures, use_reentrant = False)
-            # linearOutput = self.fcs[0](transposedFeatures)
-            linearOutput = linearOutput.view(-1, *linearOutput.shape[2:]) 
+                print(f'Layer[0]:\tConvolution (BTF) {self.messageProcessors[1].inputFeatures} -> {self.messageProcessors[1].outputFeatures} features')
+            boundaryConvolution = (self.messageProcessors[1]((fluidFeatures, boundaryFeatures), boundaryEdgeIndex, boundaryEdgeLengths, boundaryEdgeWeights, batches=  batches))
         else:
-            linearOutput = None
+            boundaryConvolution = None
 
-        ### Single Layer Case
-        if len(self.features) == 1:                
-            if self.hasBoundaryLayers:
-                fluidConvolution += boundaryConvolution
+        
 
-            if self.fcLayerMLPProperties is not None:
-                if self.vertexMLPProperties is not None:
-                    fluidConvolution = torch.hstack((linearOutput, fluidConvolution))
-                else:
-                    fluidConvolution = linearOutput + fluidConvolution
+        # ### Single Layer Case
+        # if len(self.features) == 1:                
+        #     if self.hasBoundaryLayers:
+        #         fluidConvolution += boundaryConvolution
 
-            if self.vertexMLPProperties is not None:
-                if verbose:
-                    print(f'Layer[0]:\tVertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features')
-                    fluidConvolution = runMLP(self.vertexMLPs[0], fluidConvolution, batches, verbose = False)
+        #     if self.fcLayerMLPProperties is not None:
+        #         if self.vertexMLPProperties is not None:
+        #             fluidConvolution = torch.hstack((linearOutput, fluidConvolution))
+        #         else:
+        #             fluidConvolution = linearOutput + fluidConvolution
 
-            if self.normalization != 'none':
-                if verbose:
-                    print(f'Layer[0]:\tApplying Normalization {fluidConvolution.shape}')
-                fluidConvolution = applyNorm(self.normalizationLayers[0], batches, fluidConvolution)
+        #     if self.vertexMLPProperties is not None:
+        #         if verbose:
+        #             print(f'Layer[0]:\tVertex MLP {self.vertexMLPDicts[0]["inputFeatures"]} -> {self.vertexMLPDicts[0]["output"]} features')
+        #             fluidConvolution = runMLP(self.vertexMLPs[0], fluidConvolution, batches, verbose = False)
 
-            if self.outputDecoder is not None:
-                # if verbose:
-                    # print(f'(pre outputDecoder) fluidConvolution: {fluidConvolution.shape}')
-                if verbose:
-                    print(f'Layer[0]:\tOutput Decoder {self.outputDecoderProperties["inputFeatures"]} -> {self.outputDecoderProperties["output"]} features')
-                fluidConvolution = runMLP(self.outputDecoder, fluidConvolution, batches, verbose = False)          
-            if verbose:
-                print(f'Final: {fluidConvolution.shape} [min: {torch.min(fluidConvolution)}, max: {torch.max(fluidConvolution)}, mean: {torch.mean(fluidConvolution)}]')  
-            return fluidConvolution 
+        #     if self.normalization != 'none':
+        #         if verbose:
+        #             print(f'Layer[0]:\tApplying Normalization {fluidConvolution.shape}')
+        #         fluidConvolution = applyNorm(self.normalizationLayers[0], batches, fluidConvolution)
+
+        #     if self.outputDecoder is not None:
+        #         # if verbose:
+        #             # print(f'(pre outputDecoder) fluidConvolution: {fluidConvolution.shape}')
+        #         if verbose:
+        #             print(f'Layer[0]:\tOutput Decoder {self.outputDecoderProperties["inputFeatures"]} -> {self.outputDecoderProperties["output"]} features')
+        #         fluidConvolution = runMLP(self.outputDecoder, fluidConvolution, batches, verbose = False)          
+        #     if verbose:
+        #         print(f'Final: {fluidConvolution.shape} [min: {torch.min(fluidConvolution)}, max: {torch.max(fluidConvolution)}, mean: {torch.mean(fluidConvolution)}]')  
+        #     return fluidConvolution 
         ### Multi Layer Case
+        # if verbose:
+        #     print(f'Layer[0]:\tStacking Features: {linearOutput.shape if linearOutput is not None else 0} | {fluidConvolution.shape} | {boundaryConvolution.shape if self.hasBoundaryLayers else 0}')
+        # if self.hasBoundaryLayers:
+        #     if self.fcLayerMLPProperties is not None:
+        #         ans = torch.hstack((linearOutput, fluidConvolution, boundaryConvolution))
+        #     else:
+        #         ans = torch.hstack((fluidConvolution, boundaryConvolution))
+        # else:
+        #     if self.fcLayerMLPProperties is not None:
+        #         ans = torch.hstack((linearOutput, fluidConvolution))
+        #     else:
+        #         ans = fluidConvolution
+        convolutions = torch.hstack((fluidConvolution, boundaryConvolution)) if self.hasBoundaryLayers else fluidConvolution
+        ans = torch.hstack((convolutions, fluidFeatures)) if self.vertexMLPProperties['vertexInput'] else convolutions
+
         if verbose:
-            print(f'Layer[0]:\tStacking Features: {linearOutput.shape if linearOutput is not None else 0} | {fluidConvolution.shape} | {boundaryConvolution.shape if self.hasBoundaryLayers else 0}')
-        if self.hasBoundaryLayers:
-            if self.fcLayerMLPProperties is not None:
-                ans = torch.hstack((linearOutput, fluidConvolution, boundaryConvolution))
-            else:
-                ans = torch.hstack((fluidConvolution, boundaryConvolution))
-        else:
-            if self.fcLayerMLPProperties is not None:
-                ans = torch.hstack((linearOutput, fluidConvolution))
-            else:
-                ans = fluidConvolution
+            print(f'Layer[0]: Convolution Shape: {convolutions.shape} | ans Shape: {ans.shape}')
+
 
         if verbose:
             print(f'Pre-Message Passing Done: {ans.shape}\n')
@@ -551,13 +637,25 @@ class GraphNetwork(torch.nn.Module):
             ans = torch.utils.checkpoint.checkpoint(self.vertexMLPs[0], transposedFeatures, use_reentrant = False)
             # ans = self.vertexMLPs[0](transposedFeatures)
             ans = ans.view(-1, *ans.shape[2:])
+
+        skipLayerOutput = None
+        if self.skipConnectionMode != 'none':
+            if verbose:
+                print(f'Layer[0]:\tLinear {self.skipConnectionDicts[0]["inputFeatures"]} -> {self.skipConnectionDicts[0]["output"]} features')
+            skipLayerOutput = runMLP(self.skipConnections[0], fluidFeatures, batches, verbose = False)
+            if self.skipConnectionMode == 'stack':
+                ans = torch.hstack((ans, skipLayerOutput))
+            else:
+                ans = ans + skipLayerOutput
+        else:
+            skipLayerOutput = None
         
         if self.normalization != 'none':
             if verbose:
                 print(f'Layer[0]:\tApplying Normalization {ans.shape}')
             fluidConvolution = applyNorm(self.normalizationLayers[0], batches, ans)
 
-        layers = len(self.convs)
+        layers = len(self.messageProcessors)
         for i in range(1 if not self.hasBoundaryLayers else 2,layers):
             if verbose:
                 print(f'Layer[{i}]:\tInput {ans.shape}')
@@ -565,9 +663,9 @@ class GraphNetwork(torch.nn.Module):
             ansc = self.relu(ans)
             if verbose:
                 # print(f'Layer[{i}]:\tResult for layer {i-1} [min: {torch.min(ansc)}, max: {torch.max(ansc)}, mean: {torch.mean(ansc)}] | [min: {torch.min(ans)}, max: {torch.max(ans)}, mean: {torch.mean(ans)}]')
-                print(f'Layer[{i}]:\tRunning Convolution {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features [edge_dim = {self.convs[i].dim}]')
+                print(f'Layer[{i}]:\tRunning Convolution {self.messageProcessors[i].inputFeatures} -> {self.messageProcessors[i].outputFeatures} features [edge_dim = {self.messageProcessors[i].dim}]')
             # print(f'Layer[{i}]:\tConvolution: {self.convs[i].inputFeatures} -> {self.convs[i].outputFeatures} features')
-            ansConv = self.convs[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
+            ansConv = self.messageProcessors[i]((ansc, ansc), fluidEdgeIndex, fluidEdgeLengths, fluidEdgeWeights)
 
             # print(f'Layer[{i}]:\tLinear: {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].in_features} -> {self.fcs[i - (1 if self.hasBoundaryLayers else 0)].out_features} features')
             if self.fcLayerMLPProperties is not None:

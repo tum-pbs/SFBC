@@ -38,31 +38,41 @@ def buildModel(hyperParameterDict, verbose = False):
     coordinateMapping = hyperParameterDict['coordinateMapping']
     windowFunction = getWindowFunction(hyperParameterDict['windowFunction'])
 
-    if verbose:
-        print(f'fluidFeatureCount: {fluidFeatureCount}')
-        print(f'boundaryFeaturecount: {boundaryFeaturecount}')
-        print(f'layers: {layers}')
-        print(f'coordinateMapping: {coordinateMapping}')
-        print(f'windowFunction: {windowFunction}')
-        # print(f'activation: {activation}')
+    # if verbose:
+    #     print(f'fluidFeatureCount: {fluidFeatureCount}')
+    #     print(f'boundaryFeaturecount: {boundaryFeaturecount}')
+    #     print(f'layers: {layers}')
+    #     print(f'coordinateMapping: {coordinateMapping}')
+    #     print(f'windowFunction: {windowFunction}')
+    #     # print(f'activation: {activation}')
 
-        # print(f'rbfs: {rbfs}')
-        # print(f'dims: {dims}')
+    #     # print(f'rbfs: {rbfs}')
+    #     # print(f'dims: {dims}')
 
-        print(f'inputEncoder: {inputEncoder}')
-        print(f'outputDecoder: {outputDecoder}')
-        print(f'inputEdgeEncoder: {inputEdgeEncoder}')
-        print(f'inputBasisEncoder: {inputBasisEncoder}')
-        print(f'edgeMLP: {edgeMLP}')
-        print(f'vertexMLP: {vertexMLP}')
-        print(f'fcMLP: {fcMLP}')
-        print(f'convLayer: {convLayerDict}')
+    #     print(f'inputEncoder: {inputEncoder}')
+    #     print(f'outputDecoder: {outputDecoder}')
+    #     print(f'inputEdgeEncoder: {inputEdgeEncoder}')
+    #     print(f'inputBasisEncoder: {inputBasisEncoder}')
+    #     print(f'edgeMLP: {edgeMLP}')
+    #     print(f'vertexMLP: {vertexMLP}')
+    #     print(f'fcMLP: {fcMLP}')
+    #     print(f'convLayer: {convLayerDict}')
     model = GraphNetwork(
         fluidFeatures = fluidFeatureCount, boundaryFeatures = boundaryFeaturecount, dim = hyperParameterDict['dimension'], layers = hyperParameterDict['layers'], activation = hyperParameterDict['activation'],
         coordinateMapping=coordinateMapping, windowFn = windowFunction, 
 
-        vertexMLP = vertexMLP, edgeMLP = edgeMLP, outputDecoder = outputDecoder, inputEncoder = inputEncoder, fcLayerMLP = fcMLP, convLayer = convLayerDict, verbose = False,
-        inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder, normalization=normalization
+        vertexMLP = vertexMLP, #layerMode = 'stack', 
+        edgeMLP = edgeMLP, edgeMode = 'message',
+        
+        outputDecoder = outputDecoder, inputEncoder = inputEncoder, 
+        
+        skipLayerMLP = fcMLP, skipLayerMode = 'linear', skipConnectionMode = 'add',
+         
+        verbose = verbose,
+
+        inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder, normalization=normalization,
+
+        convLayer = convLayerDict, messageMLP = hyperParameterDict['messageMLP']
     )
     # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 

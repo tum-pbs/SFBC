@@ -72,6 +72,7 @@ def defaultHyperParameters():
         'inputEncoderActive': False,
         'inputEdgeEncoderActive': False,
         'inputBasisEncoderActive': False,
+        'firstLayerMode': 'stack',
         'outputDecoderActive': False,
         'edgeMLPActive': False,
         'vertexMLPActive': False,
@@ -85,7 +86,8 @@ def defaultHyperParameters():
                 'preNorm': True,
                 'postNorm': False,
                 'noLinear': True,
-                'channels': [1]
+                'channels': [1],
+                'bias':True
             },
         'inputEdgeEncoder': {
                 'activation': 'default',
@@ -95,7 +97,8 @@ def defaultHyperParameters():
                 'preNorm': False,
                 'postNorm': False,
                 'noLinear': False,
-                'channels': [-1, 16]
+                'channels': [-1, 16],
+                'bias':True
             },
         'inputBasisEncoder': {
             'basisTerms': 5,
@@ -110,7 +113,8 @@ def defaultHyperParameters():
                 'preNorm': True,
                 'postNorm': False,
                 'noLinear': False,
-                'channels': [-1,16,16]
+                'channels': [-1,16,16],
+                'bias':False
             },
         'edgeMLP': {
                 'activation': 'default',
@@ -120,7 +124,8 @@ def defaultHyperParameters():
                 'preNorm': False,
                 'postNorm': False,
                 'noLinear': False,
-                'channels': [16,16]
+                'channels': [16,16],
+                'bias':True
             },
         'vertexMLP': {
                 'activation': 'default',
@@ -130,7 +135,20 @@ def defaultHyperParameters():
                 'preNorm': True,
                 'postNorm': True,
                 'noLinear': False,
-                'channels': [-1,8,8,-1]
+                'channels': [-1,8,8,-1],
+                'bias':True,
+                'vertexInput': True
+            },
+        'messageMLP': {
+                'activation': 'default',
+                'gain': 1,
+                'norm': False,
+                'layout': [48,48],
+                'preNorm': False,
+                'postNorm': True,
+                'noLinear': False,
+                'channels': [1],
+                'bias':True
             },
         'fcLayerMLP': {
                 'activation': 'default',
@@ -140,7 +158,8 @@ def defaultHyperParameters():
                 'preNorm': True,
                 'postNorm': True,
                 'noLinear': False,
-                'channels': [-1,8,8,-1]
+                'channels': [-1,8,8,-1],
+                'bias':True
             },
         'convLayer': {
             'basisFunction': 'linear',
@@ -241,6 +260,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['shiftCFL'] = args.shiftCFL if hasattr(args, 'shiftCFL') else hyperParameterDict['shiftCFL'] 
     hyperParameterDict['shiftIters'] = args.shiftIters if hasattr(args, 'shiftIters') else hyperParameterDict['shiftIters']
     hyperParameterDict['numNeighbors'] = args.numNeighbors if hasattr(args, 'numNeighbors') else hyperParameterDict['numNeighbors']
+    hyperParameterDict['firstLayerMode'] = args.firstLayerMode if hasattr(args, 'firstLayerMode') else hyperParameterDict['firstLayerMode']
 
 
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
@@ -347,6 +367,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'network', 'bf', hyperParameterDict, 'boundaryFeatures')
         parseEntry(cfg, 'network', 'gt', hyperParameterDict, 'groundTruth')
         parseEntry(cfg, 'network', 'boundary', hyperParameterDict, 'boundary')
+        parseEntry(cfg, 'network', 'firstLayerMode', hyperParameterDict, 'firstLayerMode')
 
         parseEntry(cfg, 'misc', 'verbose', hyperParameterDict, 'verbose')
         parseEntry(cfg, 'loss', 'independent_dxdt', hyperParameterDict, 'independent_dxdt')
@@ -366,7 +387,7 @@ def parseConfig(config, hyperParameterDict):
         if 'additionalData' in cfg['dataset']:
             hyperParameterDict['additionalData'] = cfg['dataset']['additionalData']
 
-        dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputBasisEncoder', 'inputEdgeEncoder']
+        dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputBasisEncoder', 'inputEdgeEncoder', 'messageMLP']
         for d in dictList:
             if d in cfg:
                 for key in cfg[d]:
@@ -555,12 +576,13 @@ def toPandaDict(hyperParameterDict):
         'inputEncoderActive': hyperParameterDict['inputEncoderActive'],
         'inputEdgeEncoderActive': hyperParameterDict['inputEdgeEncoderActive'],
         'inputBasisEncoderActive': hyperParameterDict['inputBasisEncoderActive'],
+        'firstLayerMode': hyperParameterDict['firstLayerMode'],
         'outputDecoderActive': hyperParameterDict['outputDecoderActive'],
         'edgeMLPActive': hyperParameterDict['edgeMLPActive'],
         'vertexMLPActive': hyperParameterDict['vertexMLPActive'],
         'fcLayerMLPActive': hyperParameterDict['fcLayerMLPActive']
     }
-    dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputEdgeEncoder', 'inputBasisEncoder']
+    dictList = ['inputEncoder', 'outputDecoder', 'edgeMLP', 'vertexMLP', 'fcLayerMLP', 'convLayer', 'inputEdgeEncoder', 'inputBasisEncoder', 'messageMLP']
     for d in dictList:
         if d in hyperParameterDict:
             for key in hyperParameterDict[d]:

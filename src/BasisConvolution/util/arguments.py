@@ -70,7 +70,7 @@ parser.add_argument('--outputDecoder', type = bool, default = argparse.SUPPRESS,
 parser.add_argument('--edgeMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Edge MLP [default = False]')
 parser.add_argument('--vertexMLP', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Vertex MLP [default = False]')
 parser.add_argument('--fcLayer', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Vertex MLP [default = False]')
-
+parser.add_argument('--firstLayerMode', type = str, default = argparse.SUPPRESS, help='First layer mode [default = "stack"]')
 
 parser.add_argument('--independent_dxdt', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='dxdt predicts velocity as well')
 parser.add_argument('--networkType', type = str, default = argparse.SUPPRESS, help='Shifting the loop')

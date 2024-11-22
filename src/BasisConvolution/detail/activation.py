@@ -54,6 +54,8 @@ def getActivationLayer(function: str):
         return nn.SiLU()
     elif function == 'mish':
         return nn.Mish()
+    elif function == 'none':
+        return nn.Identity()
     else:
         raise ValueError(f'Unknown activation function: {function}')
     

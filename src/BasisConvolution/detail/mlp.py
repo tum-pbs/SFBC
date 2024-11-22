@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 from .activation import getActivationLayer
+from collections import OrderedDict
 
 class TransposeLayer(nn.Module):
     def __init__(self, dim1=0, dim2=1):
@@ -15,51 +16,70 @@ import numpy as np
 def buildMLPwActivation(layers, inputFeatures = 1, gain = 1/np.sqrt(34), activation = 'gelu', norm = False, groups = 1, preNorm = False, postNorm = False, noLinear = False, bias = True):
     # print(f'layers: {layers}, inputFeatures: {inputFeatures}, gain: {gain}, activation: {activation}, norm: {norm}, channels: {channels}, preNorm: {preNorm}, postNorm: {postNorm}, noLinear: {noLinear}')
     activationFn = getActivationLayer(activation)
+    transposeCounter = 0
+    normCounter = 0
+    linear = 0
     modules = []
     if preNorm:
-        modules.append(TransposeLayer(1,2))
+        modules.append((f'transposeLayer{transposeCounter}', TransposeLayer(1,2)))
+        transposeCounter += 1
         # print(f'groups: {groups[0] if isinstance(groups, list) else groups}, inputFeatures: {inputFeatures}')
+        # print(f'PreNorm: {groups} | {inputFeatures}')
         if isinstance(groups,list):
             numGroups = groups[0]
         if numGroups == -1:
             numGroups = inputFeatures
-        modules.append(nn.GroupNorm(numGroups, inputFeatures))
-        modules.append(TransposeLayer(1,2))
+        modules.append((f'norm{normCounter}', nn.GroupNorm(numGroups, inputFeatures)))
+        normCounter += 1
+        modules.append((f'transposeLayer{transposeCounter}', TransposeLayer(1,2)))
+        transposeCounter += 1
+
     if not noLinear:
         if len(layers) > 1:
             for i in range(len(layers) - 1):
-                modules.append(nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i]))
+                modules.append((f'linear{linear}', nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i])))
+                linear += 1
+
     #             torch.nn.init.uniform_(modules[-1].weight,-0.5, 0.5)
-                torch.nn.init.xavier_normal_(modules[-1].weight,1)
+                torch.nn.init.xavier_normal_(modules[-1][1].weight,1)
         #         torch.nn.init.zeros_(modules[-1].weight)
-                torch.nn.init.zeros_(modules[-1].bias)
+                torch.nn.init.zeros_(modules[-1][1].bias)
                 # modules.append(nn.BatchNorm1d(layers[i]))
                 if norm:
-                    modules.append(TransposeLayer(1,2))
+                    modules.append((f'transposeLayer{transposeCounter}',TransposeLayer(1,2)))
+                    transposeCounter += 1
                     # print(f'groups: {groups}, layers[i]: {layers[i]}')
 
                     numGroups = groups[(i + 1) if preNorm else i] if isinstance(groups,list) else groups
                     if numGroups == -1:
                         numGroups = layers[i]
-                    modules.append(nn.GroupNorm(numGroups, layers[i]))
-                    modules.append(TransposeLayer(1,2))
-                modules.append(activationFn)
-            modules.append(nn.Linear(layers[-2],layers[-1], bias = bias))
+                    modules.append((f'norm{normCounter}', nn.GroupNorm(numGroups, layers[i])))
+                    normCounter += 1
+                    modules.append((f'transposeLayer{transposeCounter}',TransposeLayer(1,2)))
+                    transposeCounter += 1
+                modules.append((f'activation{linear-1}', activationFn))
+            modules.append((f'linear{linear}', nn.Linear(layers[-2],layers[-1], bias = bias)))
         else:
-            modules.append(nn.Linear(inputFeatures,layers[-1], bias = bias)  )
-        torch.nn.init.xavier_normal_(modules[-1].weight,gain)
+            modules.append((f'linear{linear}', nn.Linear(inputFeatures,layers[-1], bias = bias))  )
+        torch.nn.init.xavier_normal_(modules[-1][1].weight,gain)
         if bias:
-            torch.nn.init.zeros_(modules[-1].bias)     
+            torch.nn.init.zeros_(modules[-1][1].bias)     
     if postNorm:
-        modules.append(TransposeLayer(1,2))
+        modules.append((f'transposeLayer{transposeCounter}', TransposeLayer(1,2)))
+        transposeCounter += 1
         # print(f'groups: {channels}, layers[-1]: {layers[-1]}')
         # print(f'groups: {groups[-1] if isinstance(groups,list) else groups}, layers[-1]: {layers[-1]}')
         numGroups = groups[-1] if isinstance(groups,list) else groups
         if numGroups == -1:
             numGroups = layers[-1]
-        modules.append(nn.GroupNorm(numGroups, layers[-1]))
-        modules.append(TransposeLayer(1,2)) 
-    return nn.Sequential(*modules)
+        modules.append((f'norm{normCounter}', nn.GroupNorm(numGroups, layers[-1])))
+        normCounter += 1
+        modules.append((f'transposeLayer{transposeCounter}', TransposeLayer(1,2)))
+        transposeCounter += 1
+    moduleDict = OrderedDict()
+    for i, module in enumerate(modules):
+        moduleDict[module[0]] = module[1]
+    return nn.Sequential(moduleDict)
 
 def buildMLPwDict(properties : dict):
     layout = properties['layout'] if 'layout' in properties else []
@@ -89,20 +109,20 @@ def buildMLPwDict(properties : dict):
     return mlp
 
 
-def buildMLP(layers, inputFeatures = 1, gain = 1/np.sqrt(34)):
-    modules = []
-    if len(layers) > 1:
-        for i in range(len(layers) - 1):
-            modules.append(nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i]))
-#             torch.nn.init.uniform_(modules[-1].weight,-0.5, 0.5)
-            torch.nn.init.xavier_normal_(modules[-1].weight,1)
-    #         torch.nn.init.zeros_(modules[-1].weight)
-            torch.nn.init.zeros_(modules[-1].bias)
-            # modules.append(nn.BatchNorm1d(layers[i]))
-            modules.append(nn.GELU())
-        modules.append(nn.Linear(layers[-2],layers[-1]))
-    else:
-        modules.append(nn.Linear(inputFeatures,layers[-1]))        
-    torch.nn.init.xavier_normal_(modules[-1].weight,gain)
-    torch.nn.init.zeros_(modules[-1].bias)
-    return nn.Sequential(*modules)
+# def buildMLP(layers, inputFeatures = 1, gain = 1/np.sqrt(34)):
+#     modules = []
+#     if len(layers) > 1:
+#         for i in range(len(layers) - 1):
+#             modules.append(nn.Linear(inputFeatures if i == 0 else layers[i-1],layers[i]))
+# #             torch.nn.init.uniform_(modules[-1].weight,-0.5, 0.5)
+#             torch.nn.init.xavier_normal_(modules[-1].weight,1)
+#     #         torch.nn.init.zeros_(modules[-1].weight)
+#             torch.nn.init.zeros_(modules[-1].bias)
+#             # modules.append(nn.BatchNorm1d(layers[i]))
+#             modules.append(nn.GELU())
+#         modules.append(nn.Linear(layers[-2],layers[-1]))
+#     else:
+#         modules.append(nn.Linear(inputFeatures,layers[-1]))        
+#     torch.nn.init.xavier_normal_(modules[-1].weight,gain)
+#     torch.nn.init.zeros_(modules[-1].bias)
+#     return nn.Sequential(*modules)

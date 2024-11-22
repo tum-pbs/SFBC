@@ -152,11 +152,11 @@ class BasisConvLayer(torch.nn.Module):
             'gain': 1,
             'norm': False,
             'preNorm': False,
-            'postNorm': False,
+            'postNorm': True,
             'noLinear': False,
             'bias': True,
-            'groups': [16,32,-1],
-            'layout': [96,96],
+            'groups': [1],
+            'layout': [64],
         },
         **kwargs
     ):
@@ -329,7 +329,7 @@ class BasisConvLayer(torch.nn.Module):
                 print(f'\tAfter Stacking Edges: {combinedFeatures.shape}')
 
             transposedFeatures = combinedFeatures.view(batches, -1, *combinedFeatures.shape[1:])
-            
+
             # outFeatures = self.mlp(transposedFeatures)
             outFeatures = torch.utils.checkpoint.checkpoint(self.mlp, transposedFeatures, use_reentrant = False)
 
