@@ -136,6 +136,9 @@ def runMessagePassingStep(edge_index : torch.Tensor, edge_attr : torch.Tensor, x
     if 'diff' in vertexMode:
         combinedFeatures = torch.hstack((combinedFeatures, x_i[edge_index[0]] - x_j[edge_index[1]]))
 
+    # print(f'\tCombined Features: {combinedFeatures.shape} [vertexMode: {vertexMode}]')
+    # print(f'\tEdge Attr: {edge_attr.shape}')
+
     if verbose:
         print(f'\tVertex Mode: {vertexMode} -> Shape {combinedFeatures.shape}')
     combinedFeatures = torch.hstack((combinedFeatures, edge_attr))
@@ -378,7 +381,8 @@ class BasisConvLayer(torch.nn.Module):
             messages = torch.utils.checkpoint.checkpoint(runMessagePassingStep, edge_index, edge_attr, x, self.mlp, self.edgeSkipLinear, self.edgeSkip, self.vertexMode, verbose = verbose, batches = batches, returnMessages = self.edgeMode == 'messages', use_reentrant = False)
             # messages = runMessagePassingStep(edge_index, edge_attr, x, self.mlp, self.edgeSkipLinear, self.edgeSkip, self.vertexMode, verbose = verbose, batches = batches, returnMessages = self.edgeMode == 'messages')
             out = scatter_sum(messages, edge_index[0], dim = 0, dim_size = x_i.shape[0])
-            if self.edgeMode == 'messages':
+            # print(f'Out: {out.shape}, Messages: {messages.shape}, edge Mode: {self.edgeMode}')
+            if self.edgeMode == 'message':
                 return out, messages
             else:
                 return out, None

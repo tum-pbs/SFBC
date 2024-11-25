@@ -10,7 +10,7 @@ def computeSupport(area, targetNumNeighbors, dim):
     if dim == 1:
         return targetNumNeighbors * area
     if dim == 2:
-        if isinstance(targetNumNeighbors, int):
+        if (isinstance(targetNumNeighbors, int) or isinstance(targetNumNeighbors, float)) and not isinstance(area, torch.Tensor):
             return np.sqrt(targetNumNeighbors * area / np.pi)
         return torch.sqrt(targetNumNeighbors * area / np.pi)
     if dim == 3:

@@ -632,6 +632,7 @@ class GraphNetwork(torch.nn.Module):
         #         ans = torch.hstack((linearOutput, fluidConvolution))
         #     else:
         #         ans = fluidConvolution
+        # print(self.edgeMLPmode)
         if self.edgeMLPmode == 'message':
             fluidEdgeLengths = fluidMessages
             
