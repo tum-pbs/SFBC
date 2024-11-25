@@ -362,7 +362,7 @@ class GraphNetwork(torch.nn.Module):
             
         self.messageProcessors.append(BasisConvLayer(inputFeatures=currentFeatures, outputFeatures= self.features[0], **self.messageLayerProperties))
         if verbose: 
-            print(f'Layer[{1}]:\tFluid Convolution: {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[0].parameters()])} parameters)')
+            print(f'Layer[{1}]:\tFluid Convolution: {self.messageProcessors[0].inputFeatures} -> {self.messageProcessors[0].outputFeatures} features ({sum([p.numel() for p in self.messageProcessors[0].parameters()])} parameters) [dim = {edge_dimensioniality}]')
         if boundaryFeatures != 0:
             self.messageProcessors.append(BasisConvLayer(inputFeatures=boundaryFeatures, outputFeatures= self.features[0],**self.messageLayerProperties ))
             if verbose:
