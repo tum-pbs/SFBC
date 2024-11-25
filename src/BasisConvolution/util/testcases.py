@@ -10,6 +10,8 @@ def computeSupport(area, targetNumNeighbors, dim):
     if dim == 1:
         return targetNumNeighbors * area
     if dim == 2:
+        if isinstance(targetNumNeighbors, int):
+            return np.sqrt(targetNumNeighbors * area / np.pi)
         return torch.sqrt(targetNumNeighbors * area / np.pi)
     if dim == 3:
         return (3 * targetNumNeighbors * area / (4 * np.pi))**(1/3)

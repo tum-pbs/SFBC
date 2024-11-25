@@ -264,8 +264,8 @@ class GraphNetwork(torch.nn.Module):
                 self.inputEdgeEncoderProperties['output'] = dim
             self.inputEdgeEncoder = buildMLPwDict(self.inputEdgeEncoderProperties)
             # Update the dimensionality of the convolution layer
-            if 'dim' not in self.messageLayerProperties:
-                edge_dimensioniality = self.inputEdgeEncoderProperties['output']
+            # if 'dim' not in self.messageLayerProperties:
+            edge_dimensioniality = self.inputEdgeEncoderProperties['output']
             if verbose:
                 print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features ({sum([p.numel() for p in self.inputEdgeEncoder.parameters()])} parameters)')
 
