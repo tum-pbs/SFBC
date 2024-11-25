@@ -270,7 +270,7 @@ class GraphNetwork(torch.nn.Module):
                 print(f'Input Edge Encoder: {self.inputEdgeEncoderProperties["inputFeatures"]} -> {self.inputEdgeEncoderProperties["output"]} features ({sum([p.numel() for p in self.inputEdgeEncoder.parameters()])} parameters)')
 
         self.messageLayerProperties['dim'] = edge_dimensioniality
-        # self.messageLayerProperties['edgeMode'] = edgeMode
+        self.messageLayerProperties['edgeMode'] = edgeMode
 
         ### ----------------------------------------------------------------------------------- ###\
         ### Build Output Decoder
