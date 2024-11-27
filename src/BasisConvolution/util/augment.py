@@ -25,36 +25,44 @@ def augmentState(perennialState, augJitter = None, augRotation = None, augmentFe
     return augmentedState
 
 def augmentStates(attributes, states, hyperParameterDict):
-    if hyperParameterDict['augmentJitter']:
-        jitterAmount = hyperParameterDict['jitterAmount']
-        augJitter = torch.normal(0, jitterAmount * attributes['support'], states[0]['fluid']['positions'].shape, device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
-    else:
-        augJitter = None
-    if hyperParameterDict['augmentAngle']:
-        dim = states[0]['fluid']['positions'].shape[1]
-        if dim == 1:
-            raise ValueError('Cannot rotate 1D data')
-        if dim == 2:
-            angle = torch.rand(1) * 2 *  np.pi
-            augRotation = torch.tensor([[np.cos(angle), -np.sin(angle)],[np.sin(angle), np.cos(angle)]], device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
-        if dim == 3:
-            angle_phi = torch.rand(1) * 2 *  np.pi
-            angle_theta = torch.rand(1) * 2 *  np.pi
-            augRotation = torch.tensor([
-                [np.cos(angle_phi) * np.sin(angle_theta), -np.sin(angle_phi), np.cos(angle_phi) * np.cos(angle_theta)],
-                [np.sin(angle_phi) * np.sin(angle_theta), np.cos(angle_phi), np.sin(angle_phi) * np.cos(angle_theta)],
-                [np.cos(angle_theta), 0, -np.sin(angle_theta)]
-            ], device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
-    else:
-        augRotation = None
+    # if hyperParameterDict['augmentJitter']:
+    #     jitterAmount = hyperParameterDict['jitterAmount']
+    #     augJitter = torch.normal(0, jitterAmount * attributes['support'], states[0]['fluid']['positions'].shape, device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
+    # else:
+    #     augJitter = None
+    # if hyperParameterDict['augmentAngle']:
+    #     dim = states[0]['fluid']['positions'].shape[1]
+    #     if dim == 1:
+    #         raise ValueError('Cannot rotate 1D data')
+    #     if dim == 2:
+    #         angle = torch.rand(1) * 2 *  np.pi
+    #         augRotation = torch.tensor([[np.cos(angle), -np.sin(angle)],[np.sin(angle), np.cos(angle)]], device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
+    #     if dim == 3:
+    #         angle_phi = torch.rand(1) * 2 *  np.pi
+    #         angle_theta = torch.rand(1) * 2 *  np.pi
+    #         augRotation = torch.tensor([
+    #             [np.cos(angle_phi) * np.sin(angle_theta), -np.sin(angle_phi), np.cos(angle_phi) * np.cos(angle_theta)],
+    #             [np.sin(angle_phi) * np.sin(angle_theta), np.cos(angle_phi), np.sin(angle_phi) * np.cos(angle_theta)],
+    #             [np.cos(angle_theta), 0, -np.sin(angle_theta)]
+    #         ], device = states[0]['fluid']['positions'].device, dtype = states[0]['fluid']['positions'].dtype)
+    # else:
+    #     augRotation = None
 
-    if hyperParameterDict['augmentJitter'] or hyperParameterDict['augmentAngle']:
-        states = [copy.deepcopy(state) for state in states]
+    # if hyperParameterDict['augmentJitter'] or hyperParameterDict['augmentAngle']:
+    #     states = [copy.deepcopy(state) for state in states]
 
-        states = [augmentState(s, augJitter = augJitter, augRotation = augRotation) for s in states]
-        for state in states:
-            state['augmentJitter'] = augJitter
-            state['augmentRotation'] = augRotation
+    #     states = [augmentState(s, augJitter = augJitter, augRotation = augRotation) for s in states]
+    #     for state in states:
+    #         state['augmentJitter'] = augJitter
+    #         state['augmentRotation'] = augRotation
+
+    if hyperParameterDict['velocityNoise']:
+        u_mag = torch.norm(states[0]['fluid']['velocities'], dim = -1)
+        states[0]['fluid']['velocities'] += torch.randn_like(states[0]['fluid']['velocities']) * (u_mag if hyperParameterDict['velocityNoiseScaling'] == 'rel' else 1.0)[:,None] * hyperParameterDict['velocityNoiseMagnitude']
+
+    if hyperParameterDict['positionNoise']:
+        states[0]['fluid']['positions'] += torch.randn_like(states[0]['fluid']['positions']) * (hyperParameterDict['positionNoiseMagnitude'] * attributes[0]['support'] / 2)[:,None]
+
     return states
         
 from BasisConvolution.util.testcases import loadFrame
@@ -62,7 +70,7 @@ from BasisConvolution.util.testcases import loadFrame
 from BasisConvolution.util.features import getFeatures
 from BasisConvolution.util.radius import searchNeighbors
 
-def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
+def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True, skipAugment = False):
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
         print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"])
         unrollLength = hyperParameterDict['maxUnroll']
@@ -81,8 +89,10 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
         combinedStates += priorStates
 
     combinedStates += trajectoryStates
-    
-    augmentedStates = augmentStates(attributes, combinedStates, hyperParameterDict,)
+    if skipAugment:
+        augmentedStates = combinedStates
+    else:
+        augmentedStates = augmentStates(attributes, combinedStates, hyperParameterDict,)
 
     # config['neighborhood']['verletScale'] = 1.0
     # config['neighborhood']['scheme'] = 'compact'
@@ -120,11 +130,11 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     return config, attributes, currentState, priorStates, trajectoryStates
 
 
-def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True):
+def loadAugmentedBatch(bdata, dataset, hyperParameterDict, unrollLength = 8, skipAssembly = False, limitUnroll = True, skipAugment = False):
     # print('Loading batch with length ', len(bdata), ' and unroll length ', unrollLength, ' limited to ', hyperParameterDict['maxUnroll'] if limitUnroll else 'unlimited')
     if unrollLength > hyperParameterDict['maxUnroll'] and limitUnroll:
         print('Unroll length ', unrollLength, ' exceeds maximum, limiting to', hyperParameterDict["maxUnroll"], '[batch]')
         unrollLength = hyperParameterDict['maxUnroll']
     
-    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly, limitUnroll=limitUnroll) for index in bdata]
+    data = [loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = unrollLength, skipAssembly=skipAssembly, limitUnroll=limitUnroll, skipAugment=skipAugment) for index in bdata]
     return [data[0] for data in data], [data[1] for data in data], [data[2] for data in data], [data[3] for data in data], [data[4] for data in data]

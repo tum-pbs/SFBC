@@ -82,7 +82,18 @@ def defaultHyperParameters():
         'skipLayerMode': 'mlp',
         'skipConnectionMode': 'cconv',
         'activationOnNode': True,
-        
+
+        'velocityNoise': False,
+        'velocityNoiseMagnitude': 0.01,
+        'velocityNoiseScaling': 'rel',
+
+        'positionNoise': False,
+        'positionNoiseMagnitude': 0.005,
+
+        'unrollVelocityNoise': False,
+        'unrollPositionNoise': False,
+
+
         'inputEncoder': {
                 'activation': 'default',
                 'gain': 1,
@@ -274,6 +285,17 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['activationOnNode'] = args.activationOnNode if hasattr(args, 'activationOnNode') else hyperParameterDict['activationOnNode']
 
 
+    hyperParameterDict['velocityNoise'] = args.velocityNoise if hasattr(args, 'velocityNoise') else hyperParameterDict['velocityNoise']
+    hyperParameterDict['velocityNoiseMagnitude'] = args.velocityNoiseMagnitude if hasattr(args, 'velocityNoiseMagnitude') else hyperParameterDict['velocityNoiseMagnitude']
+    hyperParameterDict['velocityNoiseScaling'] = args.velocityNoiseScaling if hasattr(args, 'velocityNoiseScaling') else hyperParameterDict['velocityNoiseScaling']
+
+    hyperParameterDict['positionNoise'] = args.positionNoise if hasattr(args, 'positionNoise') else hyperParameterDict['positionNoise']
+    hyperParameterDict['positionNoiseMagnitude'] = args.positionNoiseMagnitude if hasattr(args, 'positionNoiseMagnitude') else hyperParameterDict['positionNoiseMagnitude']
+
+    hyperParameterDict['unrollVelocityNoise'] = args.unrollVelocityNoise if hasattr(args, 'unrollVelocityNoise') else hyperParameterDict['unrollVelocityNoise']
+    hyperParameterDict['unrollPositionNoise'] = args.unrollPositionNoise if hasattr(args, 'unrollPositionNoise') else hyperParameterDict['unrollPositionNoise']
+
+
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
     # hyperParameterDict['dtype'] = torch.
 
@@ -383,6 +405,14 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'network', 'skipLayerMode', hyperParameterDict, 'skipLayerMode')
         parseEntry(cfg, 'network', 'skipConnectionMode', hyperParameterDict, 'skipConnectionMode')
         parseEntry(cfg, 'network', 'activationOnNode', hyperParameterDict, 'activationOnNode')
+
+        parseEntry(cfg, 'noise', 'velocity', hyperParameterDict, 'velocityNoise')
+        parseEntry(cfg, 'noise', 'velocityMagnitude', hyperParameterDict, 'velocityNoiseMagnitude')
+        parseEntry(cfg, 'noise', 'velocityScaling', hyperParameterDict, 'velocityNoiseScaling')
+        parseEntry(cfg, 'noise', 'position', hyperParameterDict, 'positionNoise')
+        parseEntry(cfg, 'noise', 'positionMagnitude', hyperParameterDict, 'positionNoiseMagnitude')
+        parseEntry(cfg, 'noise', 'unrollVelocity', hyperParameterDict, 'unrollVelocityNoise')
+        parseEntry(cfg, 'noise', 'unrollPosition', hyperParameterDict, 'unrollPositionNoise')
 
         parseEntry(cfg, 'misc', 'verbose', hyperParameterDict, 'verbose')
         parseEntry(cfg, 'loss', 'independent_dxdt', hyperParameterDict, 'independent_dxdt')
@@ -599,6 +629,17 @@ def toPandaDict(hyperParameterDict):
         'inputBasisEncoderActive': hyperParameterDict['inputBasisEncoderActive'],
         'firstLayerMode': hyperParameterDict['firstLayerMode'],
         'edgeMode': hyperParameterDict['edgeMode'],
+
+        'velocityNoise': hyperParameterDict['velocityNoise'],
+        'velocityNoiseMagnitude': hyperParameterDict['velocityNoiseMagnitude'],
+        'velocityNoiseScaling': hyperParameterDict['velocityNoiseScaling'],
+
+        'positionNoise': hyperParameterDict['positionNoise'],
+        'positionNoiseMagnitude': hyperParameterDict['positionNoiseMagnitude'],
+
+        'unrollVelocityNoise': hyperParameterDict['unrollVelocityNoise'],
+        'unrollPositionNoise': hyperParameterDict['unrollPositionNoise'],
+
         'skipLayerMode': hyperParameterDict['skipLayerMode'],
         'skipConnectionMode': hyperParameterDict['skipConnectionMode'],
         'activationOnNode': hyperParameterDict['activationOnNode'],

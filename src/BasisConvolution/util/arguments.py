@@ -92,3 +92,13 @@ parser.add_argument('--shiftIters', type = int, default = argparse.SUPPRESS, hel
 
 
 parser.add_argument('--exportPath', type = str, default = argparse.SUPPRESS, help='Export path')
+
+parser.add_argument('--velocityNoise', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Velocity noise')
+parser.add_argument('--velocityNoiseMagnitude', type = float, default = argparse.SUPPRESS, help='Velocity noise magnitude')
+parser.add_argument('--velocityNoiseScaling', type = float, default = argparse.SUPPRESS, help='Velocity noise scaling')
+
+parser.add_argument('--positionNoise', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Position noise')
+parser.add_argument('--positionNoiseMagnitude', type = float, default = argparse.SUPPRESS, help='Position noise magnitude')
+
+parser.add_argument('--unrollVelocityNoise', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Unroll velocity noise')
+parser.add_argument('--unrollPositionNoise', type = bool, default = argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Unroll position noise')
