@@ -61,7 +61,7 @@ def augmentStates(attributes, states, hyperParameterDict):
         states[0]['fluid']['velocities'] += torch.randn_like(states[0]['fluid']['velocities']) * (u_mag if hyperParameterDict['velocityNoiseScaling'] == 'rel' else 1.0)[:,None] * hyperParameterDict['velocityNoiseMagnitude']
 
     if hyperParameterDict['positionNoise']:
-        states[0]['fluid']['positions'] += torch.randn_like(states[0]['fluid']['positions']) * (hyperParameterDict['positionNoiseMagnitude'] * attributes[0]['support'] / 2)[:,None]
+        states[0]['fluid']['positions'] += torch.randn_like(states[0]['fluid']['positions']) * (hyperParameterDict['positionNoiseMagnitude'] * attributes['support'] / 2)
 
     return states
         
