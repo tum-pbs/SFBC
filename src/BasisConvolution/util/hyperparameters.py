@@ -799,9 +799,15 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
 
-    noiseText = f'[{hyperParameterDict["velocityNoise"][:1]}{hyperParameterDict["positionNoise"][:1]}{hyperParameterDict["unrollVelocityNoise"][:1]}{hyperParameterDict["unrollPositionNoise"][:1]}]'
+    noiseText = f'[{"u" if hyperParameterDict["velocityNoise"] else " "}{"p" if hyperParameterDict["positionNoise"] else " "}{"v" if hyperParameterDict["unrollVelocityNoise"] else " "}{"p" if hyperParameterDict["unrollPositionNoise"] else " "}]'
 
-    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]' + noiseText
+    lossTerm = 'b' if hyperParameterDict['lossTerms'] == 'both' else 'x' if hyperParameterDict['lossTerms'] == 'position' else 'u' if hyperParameterDict['lossTerms'] == 'velocity' else '?'
+
+    lossText = f'[{"S" if hyperParameterDict["shiftLoss"] else " "}{lossTerm}{int(hyperParameterDict["dxdtLossScaling"])}{"i" if hyperParameterDict["independent_dxdt"] else " "}]'
+
+    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]' + noiseText + lossText
+
+    # progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]'
 
     shortLabel = progressLabel + f' - {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
     exportLabel = f'{shortLabel} - {hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]}'.replace(":", ".").replace("/", "_")
