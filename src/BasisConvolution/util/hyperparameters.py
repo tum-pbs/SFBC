@@ -746,7 +746,7 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     hyperParameterDict['arch'] =  hyperParameterDict['arch'] + ' ' + str(groundTruthCount)
 
-    hyperParameterDict['timestamp'] = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    hyperParameterDict['timestamp'] = datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f')
     hyperParameterDict['networkPrefix'] = hyperParameterDict['network']
     # hyperParameterDict['exportString'] = '%s - n=[%s] rbf=[%s] map = %s window = %s d = %2d e = %2d arch %s distance = %2d - %s seed %s%s' % (
     #     hyperParameterDict['networkPrefix'], hyperParameterDict['basisTerms'], hyperParameterDict['basisFunctions'], hyperParameterDict['coordinateMapping'], 
@@ -795,7 +795,15 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
 
-    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]'
+    noiseText = f'[{"u" if hyperParameterDict["velocityNoise"] else " "}{"p" if hyperParameterDict["positionNoise"] else " "}{"v" if hyperParameterDict["unrollVelocityNoise"] else " "}{"p" if hyperParameterDict["unrollPositionNoise"] else " "}]'
+
+    lossTerm = 'b' if hyperParameterDict['lossTerms'] == 'both' else 'x' if hyperParameterDict['lossTerms'] == 'position' else 'u' if hyperParameterDict['lossTerms'] == 'velocity' else '?'
+
+    lossText = f'[{"S" if hyperParameterDict["shiftLoss"] else " "}{lossTerm}{int(hyperParameterDict["dxdtLossScaling"])}{"i" if hyperParameterDict["independent_dxdt"] else " "}]'
+
+    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]' + noiseText + lossText
+
+    # progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]'
 
     shortLabel = progressLabel + f' - {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
     exportLabel = f'{shortLabel} - {hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]}'.replace(":", ".").replace("/", "_")
