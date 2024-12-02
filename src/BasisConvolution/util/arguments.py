@@ -89,7 +89,7 @@ parser.add_argument('--integrationScheme', type = str, default = argparse.SUPPRE
 
 parser.add_argument('--shiftCFL', type = float, default = argparse.SUPPRESS, help='Integration scheme')
 parser.add_argument('--shiftIters', type = int, default = argparse.SUPPRESS, help='Integration scheme')
-
+parser.add_argument('--shiftLossScaling', type = float, default = argparse.SUPPRESS, help='Integration scheme')
 
 parser.add_argument('--exportPath', type = str, default = argparse.SUPPRESS, help='Export path')
 

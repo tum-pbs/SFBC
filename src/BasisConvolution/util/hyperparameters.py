@@ -192,6 +192,7 @@ def defaultHyperParameters():
         },
         'shiftCFL': 10,
         'shiftIters': 1,
+        'shiftComputeDensity': True,
         'lossTerms': 'both',
         'integrationScheme': 'semiImplicitEuler',
         'numNeighbors': -1
@@ -276,6 +277,8 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['integrationScheme'] = args.integrationScheme if hasattr(args, 'integrationScheme') else hyperParameterDict['integrationScheme']
     hyperParameterDict['shiftCFL'] = args.shiftCFL if hasattr(args, 'shiftCFL') else hyperParameterDict['shiftCFL'] 
     hyperParameterDict['shiftIters'] = args.shiftIters if hasattr(args, 'shiftIters') else hyperParameterDict['shiftIters']
+    hyperParameterDict['shiftComputeDensity'] = args.shiftComputeDensity if hasattr(args, 'shiftComputeDensity') else hyperParameterDict['shiftComputeDensity']
+
     hyperParameterDict['numNeighbors'] = args.numNeighbors if hasattr(args, 'numNeighbors') else hyperParameterDict['numNeighbors']
     hyperParameterDict['firstLayerMode'] = args.firstLayerMode if hasattr(args, 'firstLayerMode') else hyperParameterDict['firstLayerMode']
             
@@ -423,6 +426,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'shifting', 'scaleShiftLoss', hyperParameterDict, 'scaleShiftLoss')
         parseEntry(cfg, 'shifting', 'integrationScheme', hyperParameterDict, 'integrationScheme')
         parseEntry(cfg, 'shifting', 'shiftIters', hyperParameterDict, 'shiftIters')
+        parseEntry(cfg, 'shifting', 'shiftComputeDensity', hyperParameterDict, 'shiftComputeDensity')
         parseEntry(cfg, 'shifting', 'shiftCFL', hyperParameterDict, 'shiftCFL')
 
         parseEntry(cfg, 'dataset', 'dataIndex', hyperParameterDict, 'dataIndex')
@@ -746,7 +750,7 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     hyperParameterDict['arch'] =  hyperParameterDict['arch'] + ' ' + str(groundTruthCount)
 
-    hyperParameterDict['timestamp'] = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    hyperParameterDict['timestamp'] = datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f')
     hyperParameterDict['networkPrefix'] = hyperParameterDict['network']
     # hyperParameterDict['exportString'] = '%s - n=[%s] rbf=[%s] map = %s window = %s d = %2d e = %2d arch %s distance = %2d - %s seed %s%s' % (
     #     hyperParameterDict['networkPrefix'], hyperParameterDict['basisTerms'], hyperParameterDict['basisFunctions'], hyperParameterDict['coordinateMapping'], 
@@ -795,10 +799,14 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
 
-    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]'
+    noiseText = f'[{hyperParameterDict["velocityNoise"][:1]}{hyperParameterDict["positionNoise"][:1]}{hyperParameterDict["unrollVelocityNoise"][:1]}{hyperParameterDict["unrollPositionNoise"][:1]}]'
+
+    progressLabel = modeText + encoderText + mlpText + layerString + mappingString + normString + f'[{hyperParameterDict["networkType"]}]' + noiseText
 
     shortLabel = progressLabel + f' - {hyperParameterDict["fluidFeatures"]} - {hyperParameterDict["groundTruth"]}'
     exportLabel = f'{shortLabel} - {hyperParameterDict["timestamp"]} - {hyperParameterDict["networkSeed"]}'.replace(":", ".").replace("/", "_")
+
+    randomNumber = np.random.randint(0, 1000000)
 
     hyperParameterDict['progressLabel'] = progressLabel
     hyperParameterDict['shortLabel'] = shortLabel
