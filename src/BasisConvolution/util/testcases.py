@@ -179,7 +179,7 @@ def loadGroup_testcaseII(inFile, inGrp, staticBoundaryData, fileName, key, fileD
             'positions': torch.from_numpy(inGrp['fluidPosition'][:]).to(device = device, dtype = dtype),
             'velocities': torch.from_numpy(inGrp['fluidVelocity'][:]).to(device = device, dtype = dtype),
             'gravityAcceleration': torch.from_numpy(inGrp['fluidGravity'][:]).to(device = device, dtype = dtype) if 'fluidGravity' not in inFile.attrs else torch.from_numpy(inFile.attrs['fluidGravity']).to(device = device, dtype = dtype) * torch.ones(inGrp['fluidDensity'][:].shape[0]).to(device = device, dtype = dtype)[:,None],
-            'densities': torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype) * inFile.attrs['restDensity'],
+            'densities': torch.from_numpy(inGrp['fluidDensity'][:]).to(device = device, dtype = dtype),
             'areas': areas,
             'masses': areas * inFile.attrs['restDensity'],
             'supports': torch.ones_like(areas) * support, #torch.from_numpy(inGrp['fluidSupport'][:]).to(device = device, dtype = dtype),
@@ -188,10 +188,12 @@ def loadGroup_testcaseII(inFile, inGrp, staticBoundaryData, fileName, key, fileD
         },
         'boundary': dynamicBoundaryData if dynamicBoundaryData is not None else staticBoundaryData,
         'time': inGrp.attrs['time'],
-        'dt': inGrp.attrs['dt'],
+        'dt': inGrp.attrs['dt'] * hyperParameterDict['frameDistance'],
         'timestep': inGrp.attrs['timestep'],
     }
     loadAdditional(inGrp, state['fluid'], additionalData, device, dtype)
+    if hyperParameterDict['normalizeDensity']:
+        state['fluid']['densities'] = (state['fluid']['densities'] - 1) * inFile.attrs['restDensity']
     # for dataKey in additionalData:
         # state['fluid'][dataKey] = torch.from_numpy(np.array(inGrp[dataKey])).to(device = device, dtype = dtype)
     
@@ -209,7 +211,7 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
         'support': support,
         'targetNeighbors': inFile.attrs['targetNeighbors'],
         'restDensity': inFile.attrs['restDensity'],
-        'dt': inGrp.attrs['dt'],
+        'dt': inGrp.attrs['dt'] * hyperParameterDict['frameDistance'],
         'time': inGrp.attrs['time'],
         'radius': inFile.attrs['radius'] if 'radius' in inFile.attrs else inGrp.attrs['radius'],
         'area': inFile.attrs['radius'] **2 * np.pi if 'area' not in inFile.attrs else inFile.attrs['area'],
@@ -245,6 +247,9 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
         },
         'particle':{
             'support': attributes['support']
+        },
+        'shifting':{
+            'CFL': 1.5
         }
     }
 
@@ -287,12 +292,33 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
 
     iPriorKey = int(key) - hyperParameterDict['frameDistance']
 
-    priorState = None
-    if buildPriorState:
-        if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
-            priorState = copy.deepcopy(state)
-        else:
-            priorState = loadGroup_testcaseII(inFile, inFile['simulationExport']['%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+
+    priorStates = []
+    # print(f'Loading prior states [{max(hyperParameterDict["historyLength"], 1)}]')
+    for h in range(max(hyperParameterDict['historyLength'], 1)):
+        priorState = None        
+        iPriorKey = int(key) - hyperParameterDict['frameDistance'] * (h + 1)
+
+        if buildPriorState or hyperParameterDict['adjustForFrameDistance']:
+            if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
+                priorState = copy.deepcopy(state)
+            else:
+                grp = inFile['simulationExport']['%05d' % iPriorKey] if '%05d' % iPriorKey in inFile['simulationExport'] else None
+                # if grp is None:
+                    # print('Key %s not found in file' % iPriorKey)
+                priorState = loadGroup_testcaseII(inFile, inFile['simulationExport']['%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+        # print('Loaded prior state %s' % iPriorKey)
+        priorStates.append(priorState)
+
+    # priorState = None
+    # print(iPriorKey)
+    # if buildPriorState:
+    #     if iPriorKey < 0 or hyperParameterDict['frameDistance'] == 0:
+    #         priorState = copy.deepcopy(state)
+    #         print('copying state')
+    #     else:
+    #         priorState = loadGroup_testcaseII(inFile, inFile['simulationExport']['%05d' % iPriorKey], staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+    #         print('loading prior state')
             
     nextStates = []
     if buildNextState:
@@ -312,9 +338,10 @@ def loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset,
 
 
 
-    return config, attributes, state, priorState, nextStates
+    return config, attributes, state, priorStates, nextStates
 
 def loadFrame_testcaseIV(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    print('loading frame', key, 'using testcase IV')
     support = inFile.attrs['support'] if hyperParameterDict['numNeighbors'] < 0 else computeSupport(inFile.attrs['volume'], hyperParameterDict['numNeighbors'], 3)
     attributes = {
         'support': support,
@@ -447,7 +474,7 @@ def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, file
             'fluid': staticFluidData,
             'boundary': staticBoundaryData,
             'time': 0.0,
-            'dt': inFile['config']['timestep'].attrs['dt'],
+            'dt': inFile['config']['timestep'].attrs['dt'] * hyperParameterDict['frameDistance'],
             'timestep': 0,
         }
         loadAdditional(inGrp, state['fluid'], additionalData, device, dtype)
@@ -519,7 +546,9 @@ def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, file
     rho = fluidState['densities']
     areas = torch.ones_like(rho) * inFile.attrs['area']
 
-    fluidState['densities'] = rho - rho.mean()#* inFile.attrs['restDensity']
+    fluidState['densities'] = rho #- rho.mean()#* inFile.attrs['restDensity']
+    if hyperParameterDict['normalizeDensity']:
+        fluidState['densities'] = (fluidState['densities'] - 1.0) * inFile.attrs['restDensity']
     fluidState['areas'] = areas
     fluidState['masses'] = areas * inFile.attrs['restDensity']
     fluidState['supports'] = torch.ones_like(rho) * support
@@ -536,7 +565,7 @@ def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, file
         'fluid': fluidState,
         'boundary': dynamicBoundaryData if dynamicBoundaryData is not None else staticBoundaryData,
         'time': inGrp.attrs['time'],
-        'dt': inGrp.attrs['dt'],
+        'dt': inGrp.attrs['dt'] * hyperParameterDict['frameDistance'],
         'timestep': inGrp.attrs['timestep'],
     }
     loadAdditional(inGrp, state['fluid'], additionalData, device, dtype)
@@ -546,6 +575,7 @@ def loadGroup_newFormat(inFile, inGrp, staticFluidData, staticBoundaryData, file
     return state
 
 def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
+    # print(f'Loading frame {key} from {fileName} ')
     # print(key)
 
     if 'initial' in inFile:
@@ -572,7 +602,7 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
             'support': support,
             'targetNeighbors': inFile.attrs['targetNeighbors'],
             'restDensity': inFile.attrs['restDensity'],
-            'dt': config['timestep']['dt'],
+            'dt': config['timestep']['dt'] * hyperParameterDict['frameDistance'],
             'time': 0.0,
             'radius': inFile.attrs['radius'],
             'area': area,
@@ -599,7 +629,7 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
             'support': support,
             'targetNeighbors': inFile.attrs['targetNeighbors'],
             'restDensity': inFile.attrs['restDensity'],
-            'dt': inGrp.attrs['dt'],
+            'dt': inGrp.attrs['dt'] * hyperParameterDict['frameDistance'],
             'time': inGrp.attrs['time'],
             'radius': inFile.attrs['radius'] if 'radius' in inFile.attrs else inGrp.attrs['radius'],
             'area': area,
@@ -654,6 +684,7 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
 
 
     priorStates = []
+    # print(f'Loading prior states [{max(hyperParameterDict["historyLength"], 1)}]')
     for h in range(max(hyperParameterDict['historyLength'], 1)):
         priorState = None        
         iPriorKey = int(key) - hyperParameterDict['frameDistance'] * (h + 1)
@@ -663,7 +694,10 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
                 priorState = copy.deepcopy(state)
             else:
                 grp = inFile['simulationExport']['%05d' % iPriorKey] if '%05d' % iPriorKey in inFile['simulationExport'] else None
+                # if grp is None:
+                    # print('Key %s not found in file' % iPriorKey)
                 priorState = loadGroup_newFormat(inFile, grp, staticFluidData, staticBoundaryData, fileName, iPriorKey, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, device = device, dtype = dtype, additionalData = additionalData, buildPriorState = False, buildNextState = False)
+        # print('Loaded prior state %s' % iPriorKey)
         priorStates.append(priorState)
 
     nextStates = []
@@ -877,10 +911,12 @@ def loadFrame(index, dataset, hyperParameterDict, unrollLength = 8):
             }
 
             if 'config' in inFile: # New format
+                # print('New format')
                 return loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, additionalData= [] if 'additionalData' not in hyperParameterDict else hyperParameterDict['additionalData'], device = hyperParameterDict['device'], dtype = hyperParameterDict['dtype'])
 
                 raise ValueError('New format not supported')
             if 'config' not in inFile:
+                # print('Old format')
                 if isTemporalData(inFile): # temporal old format data, test case II/III
                     return loadFrame_testcaseII(inFile, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = unrollLength, additionalData= [] if 'additionalData' not in hyperParameterDict else hyperParameterDict['additionalData'], device = hyperParameterDict['device'], dtype = hyperParameterDict['dtype'])
                 else:

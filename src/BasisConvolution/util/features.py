@@ -197,7 +197,7 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
             else:
                 raise ValueError('Unknown operation: ' + operation)
 
-    if featureName.startswith('diff'):
+    if featureName.startswith('diff') or featureName.startswith('ddt'):
         if verbose:
                 print('Processing difference operation:', featureName)
         feature = featureName.split('@', maxsplit = 1)[1]
@@ -282,10 +282,10 @@ def getFeaturev2(featureName, currentState, priorState, which, config, dt, verbo
         tfeat = translateFeature(feature)
         attribute = currentState[which][tfeat]
 
-        if tfeat == 'densities' and normalizeRho:
-            if verbose:
-                print('Normalizing Density')
-            attribute = attribute - config['fluid']['rho0']# - 1
+        # if tfeat == 'densities' and normalizeRho:
+            # if verbose:
+                # print('Normalizing Density')
+            # attribute = attribute - config['fluid']['rho0']# - 1
 
         if op is not None:
             if op == 'x':

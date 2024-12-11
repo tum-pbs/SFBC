@@ -18,7 +18,7 @@ parser.add_argument('--weight_decay', type=float, default=argparse.SUPPRESS, hel
 parser.add_argument('-r','--basisFunctions', type=str, default=argparse.SUPPRESS, help='RBF kernel X-Component [default = linear]')
 parser.add_argument('-n','--basisTerms', type=int, default=argparse.SUPPRESS, help = "RBF Kernel X-Width [default = 4]")
 parser.add_argument('--convMode', type=str, default=argparse.SUPPRESS, help='Convolution mode [default = "conv"]')
-
+parser.add_argument('--normalizeDensity', type=bool, default=argparse.SUPPRESS, action=argparse.BooleanOptionalAction, help='Normalize density [default = False]')
 
 parser.add_argument('--seed', type=int, default=argparse.SUPPRESS, help='Seed [default = 42]')
 parser.add_argument('--networkseed', type=int, default=argparse.SUPPRESS, help='Network seed [default = 42]')

@@ -100,7 +100,7 @@ def buildModel(hyperParameterDict, verbose = False):
         optimizer = torch.optim.AdamW(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
     else:
         raise ValueError(f'Optimizer {chosenOptimizer} not supported')
-    optimizer = Adam(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
+    # optimizer = Adam(model.parameters(), lr=hyperParameterDict['initialLR'], weight_decay = hyperParameterDict['weight_decay'])
     # model = model.to(device)
 
     optimizer.zero_grad()

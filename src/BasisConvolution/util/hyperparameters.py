@@ -66,7 +66,7 @@ def defaultHyperParameters():
         'device': 'cpu',
         'dtype': torch.float32,
 
-        'optimizer': 'adam',
+        'optimizer': 'adamw',
         'momentum': 0.9,
 
         'inputEncoderActive': False,
@@ -387,6 +387,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'io', 'input', hyperParameterDict, 'input')
         parseEntry(cfg, 'io', 'exportPath', hyperParameterDict, 'exportPath')
         parseEntry(cfg, 'io', 'numNeighbors', hyperParameterDict, 'numNeighbors')
+        # parseEntry(cfg, 'io', 'normalizeDensity', hyperParameterDict, 'dataIndex')
 
         parseEntry(cfg, 'dataset', 'frameDistance', hyperParameterDict, 'frameDistance')
         parseEntry(cfg, 'dataset', 'dataDistance', hyperParameterDict, 'dataDistance')
@@ -797,7 +798,7 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     layerString = f'[{layerString.strip()}]'
     mappingString = f'[{hyperParameterDict["coordinateMapping"][:4]}/{hyperParameterDict["windowFunction"][:4] if hyperParameterDict["windowFunction"] is not None else "None"}]'
 
-    normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
+    normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["optimizer"]}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
 
     noiseText = f'[{"u" if hyperParameterDict["velocityNoise"] else " "}{"p" if hyperParameterDict["positionNoise"] else " "}{"v" if hyperParameterDict["unrollVelocityNoise"] else " "}{"p" if hyperParameterDict["unrollPositionNoise"] else " "}]'
 

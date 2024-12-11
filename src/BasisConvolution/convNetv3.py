@@ -398,8 +398,8 @@ class GraphNetwork(torch.nn.Module):
 
         ### Middle Layers
         for i, l in enumerate(self.features[1:-1]):
-            # if verbose:
-                # print(f'Layer[{i+2}]:\t{self.features[i]} -> {self.features[i+1]} features')
+            if verbose:
+                print(f'Layer[{i+2}]:\t{self.features[i]} -> {self.features[i+1]} features')
             if self.skipConnectionMode == 'stack' or (self.skipConnectionMode == 'cconv' and i == 0):
                 currentFeatures = self.features[i] + (self.features[0] if boundaryFeatures != 0 and i == 0 else 0) + skipFeatureSize
             else:
@@ -426,7 +426,7 @@ class GraphNetwork(torch.nn.Module):
                 edge_dimensioniality = self.features[i+1]
             ### Fully Connected Layer
 
-            skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[0], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = i+2, layerCount = len(self.features))
+            skipLayerActive, skipMLP, skipCfg, skipFeatureSize = buildSkipConnection(currentFeatures, self.features[i+1], self.skipConnectionMode, self.skipLayerMode, self.skipConnectionProperties, verbose = verbose, layer = i+2, layerCount = len(self.features))
             if skipLayerActive:
                 self.skipConnections.append(skipMLP)
                 self.skipConnectionDicts.append(skipCfg)
@@ -666,7 +666,8 @@ class GraphNetwork(torch.nn.Module):
             if verbose:
                 print(f'Layer[0]:\tLinear {self.skipConnectionDicts[0]["inputFeatures"]} -> {self.skipConnectionDicts[0]["output"]} features')
             skipLayerOutput = runMLP(self.skipConnections[0], fluidFeatures, batches, verbose = False)
-            if self.skipConnectionMode == 'stack':
+            # print(ans.shape, skipLayerOutput.shape)
+            if self.skipConnectionMode == 'stack' or self.skipConnectionMode == 'cconv':
                 ans = torch.hstack((ans, skipLayerOutput))
             else:
                 ans = ans + skipLayerOutput

@@ -85,10 +85,23 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     combinedStates = []
     combinedStates.append(currentState)
 
+    # print('history Length', hyperParameterDict['historyLength'])
+
     if len(priorStates) > 0:
+        # print('Prior states', len(priorStates))
         combinedStates += priorStates
+    # if len(trajectoryStates) > 0:
+        # print('Trajectory states', len(trajectoryStates))
 
     combinedStates += trajectoryStates
+    # print('Combined states', len(combinedStates))
+
+    # for si, state in enumerate(combinedStates):
+        # if not isinstance(state, dict):
+            # print('????????', state)
+        # print('State', si, state.keys())
+
+
     if skipAugment:
         augmentedStates = combinedStates
     else:
@@ -115,6 +128,9 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
                 searchNeighbors(state, config, computeKernels = True)
     if skipAssembly:
         return config, attributes, currentState, priorStates, trajectoryStates
+
+    # print(currentState.keys())
+    # print(priorStates)
 
     currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorStates, 'fluid', config, currentState['time'] - priorStates[-1]['time'] if len(priorStates) > 0 else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
     
