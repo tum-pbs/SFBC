@@ -302,6 +302,11 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['device'] = args.device if hasattr(args, 'device') else hyperParameterDict['device']
     # hyperParameterDict['dtype'] = torch.
 
+    hyperParameterDict['progressLabel'] = ''
+    if hasattr(args, 'commandIndex'):
+        # Batch mode
+        hyperParameterDict['progressLabel'] = f'[{args.gpu}/{args.gpus}|{args.commandIndex:3d}/{args.commandCount:3d}]' 
+
     if hasattr(args, 'inputEncoder'):
         if args.inputEncoder == False:
             hyperParameterDict['inputEncoderActive'] = False
@@ -815,7 +820,7 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     randomNumber = np.random.randint(0, 1000000)
 
-    hyperParameterDict['progressLabel'] = progressLabel
+    hyperParameterDict['progressLabel'] += progressLabel
     hyperParameterDict['shortLabel'] = shortLabel
     hyperParameterDict['exportLabel'] = exportLabel
 

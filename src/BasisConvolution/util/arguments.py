@@ -12,6 +12,10 @@ parser.add_argument('--lr', type=float, default=argparse.SUPPRESS, help='Learnin
 parser.add_argument('--finalLR', type=float, default=argparse.SUPPRESS, help='Final learning rate [default = 0.0001]')
 parser.add_argument('--lrStep', type=int, default=argparse.SUPPRESS, help='Learning rate step [default = 1000]')
 
+# used for batch processing
+parser.add_argument('--commandIndex', type=int, default=argparse.SUPPRESS, help='Command index [default = 0]')
+parser.add_argument('--commandCount', type=str, default=argparse.SUPPRESS, help='Command [default = ""]')
+
 # parser.add_argument('--lr_decay_factor', type=float, default=argparse.SUPPRESS, help='Learning rate decay factor [default = 0.9]')
 # parser.add_argument('--lr_decay_step_size', type=int, default=argparse.SUPPRESS, help='Learning rate decay step size [default = 1]')
 parser.add_argument('--weight_decay', type=float, default=argparse.SUPPRESS, help='Weight decay [default = 0]')
