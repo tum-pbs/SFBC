@@ -343,6 +343,39 @@ def parseArguments(args, hyperParameterDict):
         elif args.fcLayer == True:
             hyperParameterDict['fcLayerMLPActive'] = True
 
+    if hasattr(args, 'mlpLayers') and hasattr(args, 'mlpWidth'):
+        hyperParameterDict['inputEncoder']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['inputEdgeEncoder']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['outputDecoder']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['edgeMLP']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['vertexMLP']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['fcLayerMLP']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['messageMLP']['layout'] = [args.mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['mlpLayersOverride'] = args.mlpLayers
+        hyperParameterDict['mlpWidthOverride'] = args.mlpWidth
+    elif hasattr(args, 'mlpWidth'):
+        mlpLayers = 2
+        hyperParameterDict['inputEncoder']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['inputEdgeEncoder']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['outputDecoder']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['edgeMLP']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['vertexMLP']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['fcLayerMLP']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['messageMLP']['layout'] = [args.mlpWidth for _ in range(mlpLayers)]
+        hyperParameterDict['mlpLayersOverride'] = 2
+        hyperParameterDict['mlpWidthOverride'] = args.mlpWidth
+    elif hasattr(args, 'mlpLayers'):
+        mlpWidth = 32
+        hyperParameterDict['inputEncoder']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['inputEdgeEncoder']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['outputDecoder']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['edgeMLP']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['vertexMLP']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['fcLayerMLP']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['messageMLP']['layout'] = [mlpWidth for _ in range(args.mlpLayers)]
+        hyperParameterDict['mlpLayersOverride'] = args.mlpLayers
+        hyperParameterDict['mlpWidthOverride'] = 32
+
 
     return hyperParameterDict
 
@@ -771,6 +804,9 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     hyperParameterDict['mlpLabel'] = f'[{"V" if hyperParameterDict["vertexMLPActive"] else " "}{"E" if hyperParameterDict["edgeMLPActive"] else " "}{"I" if hyperParameterDict["inputEncoderActive"] else " "}{"O" if hyperParameterDict["outputDecoderActive"] else " "}]'
 
+    if 'mlpLayersOverride' in hyperParameterDict and 'mlpWidthOverride' in hyperParameterDict:
+        layoutLabel = f'[{hyperParameterDict["mlpWidthOverride"]}x{hyperParameterDict["mlpLayersOverride"]}]'
+        hyperParameterDict['mlpLabel'] = hyperParameterDict['mlpLabel'] + layoutLabel
         
     modeText = ""
     if hyperParameterDict['convLayer']['mode'] == 'conv':
@@ -785,6 +821,7 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
     encoderText = f'[{"I" if hyperParameterDict["inputEncoderActive"] else " "}{"O" if hyperParameterDict["outputDecoderActive"] else " "}{"E" if hyperParameterDict["inputEdgeEncoderActive"] else " "}{"B" if hyperParameterDict["inputBasisEncoderActive"] and hyperParameterDict["convLayer"]["mode"] == "mlp" else " "}]'
 
     mlpText = f'[{"V" if hyperParameterDict["vertexMLPActive"] else " "}{"E" if hyperParameterDict["edgeMLPActive"] else " "}{"F" if hyperParameterDict["fcLayerMLPActive"] else " "}]'
+    
 
     layers = [int(a) for a in hyperParameterDict['arch'].split(' ')]
     layerString = ''
@@ -802,6 +839,8 @@ def finalizeHyperParameters(hyperParameterDict, dataset):
 
     layerString = f'[{layerString.strip()}]'
     mappingString = f'[{hyperParameterDict["coordinateMapping"][:4]}/{hyperParameterDict["windowFunction"][:4] if hyperParameterDict["windowFunction"] is not None else "None"}]'
+
+    mappingString = mappingString + f'[{hyperParameterDict["frameDistance"]:2d}x{hyperParameterDict["maxUnroll"]:2d}@{hyperParameterDict["historyLength"]:2d}]'
 
     normString = f'[{hyperParameterDict["activation"][:min(len(hyperParameterDict["activation"]),4)]:4s}/{hyperParameterDict["optimizer"]}/{hyperParameterDict["normalization"][:min(len(hyperParameterDict["normalization"]),5)]:5s}]'
 
