@@ -109,3 +109,4 @@ parser.add_argument('--unrollPositionNoise', type = bool, default = argparse.SUP
 
 parser.add_argument('--mlpLayers', type = int, default = argparse.SUPPRESS, help='MLP layers')
 parser.add_argument('--mlpWidth', type = int, default = argparse.SUPPRESS, help='MLP width')
+parser.add_argument('--outputScaling', type = float, default = argparse.SUPPRESS, help='Output scaling')

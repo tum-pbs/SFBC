@@ -29,6 +29,7 @@ def buildModel(hyperParameterDict, verbose = False):
     inputBasisEncoder = hyperParameterDict['inputBasisEncoder'] if hyperParameterDict['inputBasisEncoderActive'] else None
     convLayerDict = hyperParameterDict['convLayer']
     normalization = hyperParameterDict['normalization']
+    outputScaling = hyperParameterDict['outputScaling'] if 'outputScaling' in hyperParameterDict else 1/128
     # convLayerDict['mode'] = 'conv'
     # convLayerDict['vertexMode'] = 'i, j, sum, diff'
 
@@ -73,7 +74,8 @@ def buildModel(hyperParameterDict, verbose = False):
         inputEdgeEncoder=inputEdgeEncoder, basisEncoder=inputBasisEncoder, normalization=normalization,
 
         convLayer = convLayerDict, messageMLP = hyperParameterDict['messageMLP'],
-        activationOnNode = hyperParameterDict['activationOnNode']
+        activationOnNode = hyperParameterDict['activationOnNode'],
+        outputScaling = outputScaling
     )
     # model = BasisNetwork(fluidFeatureCount, boundaryFeaturecount, layers = layers, coordinateMapping = coordinateMapping, windowFn = windowFunction, rbfs = rbfs, dims = dims, batchSize = cutlassBatchSize, normalized = normalized, outputBias = outputBias, initializer = initializer, optimizeWeights = optimizeWeights, exponentialDecay = exponentialDecay, inputEncoder = inputEncoder, outputDecoder = outputDecoder, edgeMLP = edgeMLP, vertexMLP = vertexMLP, fcLayerMLP = fcMLP, agglomerateViaMLP = aggloMLP, activation = activation)
 

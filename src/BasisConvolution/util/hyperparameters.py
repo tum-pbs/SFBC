@@ -93,6 +93,8 @@ def defaultHyperParameters():
         'unrollVelocityNoise': False,
         'unrollPositionNoise': False,
 
+        'outputScaling': 1/128,
+
 
         'inputEncoder': {
                 'activation': 'default',
@@ -234,6 +236,7 @@ def parseArguments(args, hyperParameterDict):
     hyperParameterDict['augmentJitter'] =  args.augmentJitter if hasattr(args, 'augmentJitter') else hyperParameterDict['augmentJitter']
     hyperParameterDict['jitterAmount'] =  args.jitterAmount if hasattr(args, 'jitterAmount') else hyperParameterDict['jitterAmount']
     hyperParameterDict['networkSeed'] =  args.networkseed if hasattr(args, 'networkseed') else hyperParameterDict['networkSeed']
+    hyperParameterDict['outputScaling'] = args.outputScaling if hasattr(args, 'outputScaling') else hyperParameterDict['outputScaling']
     hyperParameterDict['network'] = args.network if hasattr(args, 'network') else hyperParameterDict['network']
 
     hyperParameterDict['optimizer'] = args.optimizer if hasattr(args, 'optimizer') else hyperParameterDict['optimizer']
@@ -447,6 +450,7 @@ def parseConfig(config, hyperParameterDict):
         parseEntry(cfg, 'network', 'skipLayerMode', hyperParameterDict, 'skipLayerMode')
         parseEntry(cfg, 'network', 'skipConnectionMode', hyperParameterDict, 'skipConnectionMode')
         parseEntry(cfg, 'network', 'activationOnNode', hyperParameterDict, 'activationOnNode')
+        parseEntry(cfg, 'network', 'outputScaling', hyperParameterDict, 'outputScaling')
 
         parseEntry(cfg, 'noise', 'velocity', hyperParameterDict, 'velocityNoise')
         parseEntry(cfg, 'noise', 'velocityMagnitude', hyperParameterDict, 'velocityNoiseMagnitude')
@@ -608,6 +612,7 @@ def toPandaDict(hyperParameterDict):
         'widths': hyperParameterDict['widths'],
         'layers': hyperParameterDict['layers'],
         'seed': hyperParameterDict['seed'],
+        'outputScaling': hyperParameterDict['outputScaling'],
 
         'lossTerms': hyperParameterDict['lossTerms'],
 

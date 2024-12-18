@@ -685,7 +685,10 @@ def loadFrame_newFormat(inFile, fileName, key, fileData, fileIndex, fileOffset, 
 
     priorStates = []
     # print(f'Loading prior states [{max(hyperParameterDict["historyLength"], 1)}]')
-    for h in range(max(hyperParameterDict['historyLength'], 1)):
+    historyLength = max(hyperParameterDict['historyLength'], 1)
+    if 'dt' in hyperParameterDict['fluidFeatures'] or 'ddt' in hyperParameterDict['fluidFeatures'] or 'diff' in hyperParameterDict['fluidFeatures']:
+        historyLength += 1
+    for h in range(historyLength):
         priorState = None        
         iPriorKey = int(key) - hyperParameterDict['frameDistance'] * (h + 1)
 

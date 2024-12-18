@@ -149,11 +149,11 @@ def runMessagePassingStep(edge_index : torch.Tensor, edge_attr : torch.Tensor, x
 
     if edgeSkip != 'none':
         if edgeSkip == 'i':
-            out = out + edgeSkipLinear(x_i)
+            out = out + edgeSkipLinear(x_i[edge_index[0]])
         elif edgeSkip == 'j':
-            out = out + edgeSkipLinear(x_j)
+            out = out + edgeSkipLinear(x_j[edge_index[1]])
         elif edgeSkip == 'ij':
-            out = out + edgeSkipLinear(torch.hstack((x_i, x_j)))
+            out = out + edgeSkipLinear(torch.hstack((x_i[edge_index[0]], x_j[edge_index[1]])))
         elif edgeSkip == 'e':
             out = out + edgeSkipLinear(edge_attr)
     # runMLP

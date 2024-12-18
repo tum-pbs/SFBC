@@ -344,7 +344,8 @@ def getFeatures(featureNames, currentState, priorStates, which, config, dt, incl
                 else:
                     # print('Processing feature (history loop):', featureName)
                     # print('History:', h, '/', historyLength, ' - ', len(priorStates))
-                    feature = getFeaturev2(featureName, priorStates[h - 1], priorStates[h] if h < len(priorStates) - 1 else None, which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+                    # print(priorStates[h] if h < len(priorStates) - 1 else None)
+                    feature = getFeaturev2(featureName, priorStates[h - 1], priorStates[h] if h < len(priorStates) else None, which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
                     # print('Feature Shape:', feature.shape)
                     # print('Current Shape:', feat.shape)
                     if feature.dim() == 1:
