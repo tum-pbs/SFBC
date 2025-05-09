@@ -222,6 +222,8 @@ def visualizeParticleQuantity(fig, axis, config, visualizationState, quantity: U
             scFluid = axis.scatter(pos_x[:,0].detach().cpu().numpy(), pos_x[:,1].detach().cpu().numpy(), s = s, c = quantity.detach().cpu().numpy(), cmap = cmap, norm = norm)
             if plotBoth and config['boundary']['active']:
                 scBoundary = axis.scatter(visualizationState['boundary']['positions'][:,0].detach().cpu().numpy(), visualizationState['boundary']['positions'][:,1].detach().cpu().numpy(), s = s * 5, c = 'black', marker = 'x')
+            elif plotBoth and not config['boundary']['active']:
+                scBoundary = axis.scatter([],[], s = s * 5, c = 'black', marker = 'x')
         elif which == 'boundary':
             scBoundary = axis.scatter(pos_x[:,0].detach().cpu().numpy(), pos_x[:,1].detach().cpu().numpy(), s = s * 5, c = quantity.detach().cpu().numpy(), cmap = cmap, norm = norm, marker = 'x')
             if plotBoth:

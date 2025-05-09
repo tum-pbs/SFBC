@@ -335,7 +335,7 @@ def getFeatures(featureNames, currentState, priorStates, which, config, dt, incl
     for featureName in featureNames:
         if verbose:
             print('Processing feature (main loop):', featureName)
-        if historyLength == 0:
+        if historyLength == 0 or 'constant'in featureName:
             feat = getFeaturev2(featureName, currentState, priorStates[0], which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
         else:
             for h in range(historyLength + 1):

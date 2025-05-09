@@ -108,6 +108,28 @@ def updatePlot_testCase_II(plotState, train_ds, hyperParameterDict, frame):
     fig.suptitle(f'{frame[0].split("/")[-1]} - timestep {frame[1]}')
     fig.canvas.draw()
 
+def updatePlot_testCase_cuMath(plotState, train_ds, hyperParameterDict, frame):
+
+    fig, axis, indexPlot, xVelocityPlot, yVelocityPlot = plotState
+    # print(frame)
+
+    frame[1] = '%06d' % frame[1]
+    # print(f'Preparing Plot for {frame}')
+    config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(frame, train_ds, hyperParameterDict)
+    # print('Loaded Frame')
+    deAugmentedState = augmentState(copy.deepcopy(currentState), augRotation = currentState['augmentRotation'].T if 'augmentRotation' in currentState else None, augmentFeatures=False)
+
+    visualizationState = prepVisualizationState(deAugmentedState, config)
+
+    updatePlot(indexPlot, visualizationState, quantity = 'indices')
+    updatePlot(xVelocityPlot, visualizationState, quantity = 'velocities')
+    updatePlot(yVelocityPlot, visualizationState, quantity = 'velocities')
+
+    # fileName, key, fileData, fileIndex, fileOffset = train_ds[int(frame[1])]
+
+    fig.suptitle(f'{frame[0].split("/")[-1]} - timestep {frame[1]}')
+    fig.canvas.draw()
+
 def preparePlot_testCase_IV(train_ds, hyperParameterDict):
     config, attributes, currentState, priorState, trajectoryStates = loadAugmentedFrame(0, train_ds, hyperParameterDict)
 
@@ -188,7 +210,7 @@ def getFileCount(file):
 def getPreparePlotFunction(datasetStyle):
     if datasetStyle == 'testcase_I':
         return preparePlot_testCase_I
-    elif datasetStyle == 'testcase_II' or datasetStyle == 'testcase_III' or datasetStyle == 'newFormat':
+    elif datasetStyle == 'testcase_II' or datasetStyle == 'testcase_III' or datasetStyle == 'newFormat' or datasetStyle == 'cuMath':
         return preparePlot_testCase_II
     elif datasetStyle == 'testcase_IV':
         return preparePlot_testCase_IV
@@ -200,6 +222,8 @@ def getUpdatePlotFunction(datasetStyle):
         return updatePlot_testCase_I
     elif datasetStyle == 'testcase_II' or datasetStyle == 'testcase_III' or datasetStyle == 'newFormat':
         return updatePlot_testCase_II
+    elif datasetStyle == 'cuMath':
+        return updatePlot_testCase_cuMath
     elif datasetStyle == 'testcase_IV':
         return updatePlot_testCase_IV
     else:

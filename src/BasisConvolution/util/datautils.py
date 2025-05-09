@@ -206,6 +206,8 @@ def isTemporalData(inFile):
     if 'simulationExport' in inFile:
         return True
     if 'simulationData' in inFile:
+        if 'simulator' in inFile.attrs:
+            return True
         if 'fluidPosition' in inFile['simulationData']:
             return True    
     return False
@@ -218,6 +220,10 @@ def getFrameCount(inFile):
     if 'simulation' in inFile:
         return int(len(inFile['simulation'].keys()) -1)
     if 'simulationData' in inFile:
+        if 'simulator' in inFile.attrs:
+            # print('Simulator found')
+            # print(len(inFile['simulationData'].keys()))
+            return int(len(inFile['simulationData'].keys()) -1)
         if 'fluidPosition' in inFile['simulationData']:
             return inFile['simulationData']['fluidPosition'].shape[0] - 1
         else:
@@ -232,6 +238,8 @@ def getFrames(inFile):
     if 'simulation' in inFile:
         return np.arange(len(inFile['simulation'].keys())).tolist(), list(inFile['simulation'].keys())
     if 'simulationData' in inFile:
+        if 'simulator' in inFile.attrs:
+            return np.arange(len(inFile['simulationData'].keys())).tolist(), list(inFile['simulationData'].keys())
         if 'fluidPosition' in inFile['simulationData']:
             return np.arange(inFile['simulationData']['fluidPosition'].shape[0]).tolist(), np.arange(inFile['simulationData']['fluidPosition'].shape[0]).tolist()
         else:
@@ -280,6 +288,9 @@ def getStyle(inFile):
                 else:
                     raise ValueError('Unsupported Format for file')
         else:
+            if 'simulationData' in inFile and 'simulator' in inFile.attrs:
+                return 'cuMath'
+            
             if 'simulation' in inFile: 
                 return 'waveEquation'
             # This should be test case I with flat 1D data
