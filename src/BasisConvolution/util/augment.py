@@ -87,7 +87,7 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
 
     # print('history Length', hyperParameterDict['historyLength'])
 
-    if len(priorStates) > 0:
+    if priorStates is not None and len(priorStates) > 0:
         # print('Prior states', len(priorStates))
         combinedStates += priorStates
     # if len(trajectoryStates) > 0:
@@ -112,8 +112,9 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     searchNeighbors(augmentedStates[0], config, computeKernels = True)
 
     currentState = augmentedStates[0]
-    priorStates = augmentedStates[1:1 + len(priorStates)] if len(priorStates) > 0 else priorStates
-    trajectoryStates = augmentedStates[1 + len(priorStates):] #if priorState is not None else augmentedStates[1 + len(priorStates):]
+    if priorStates is not None:
+        priorStates = augmentedStates[1:1 + len(priorStates)] if len(priorStates) > 0 else priorStates
+        trajectoryStates = augmentedStates[1 + len(priorStates):] #if priorState is not None else augmentedStates[1 + len(priorStates):]
     # print('prior', len(priorStates), 'trajectory', len(trajectoryStates))
 
     if 'compute' in hyperParameterDict['groundTruth']:
@@ -132,11 +133,14 @@ def loadAugmentedFrame(index, dataset, hyperParameterDict, unrollLength = 8, ski
     # print(currentState.keys())
     # print(priorStates)
 
-    currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorStates, 'fluid', config, currentState['time'] - priorStates[-1]['time'] if len(priorStates) > 0 else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
+    # print(currentState)
+    # print(priorStates)
+
+    currentState['fluid']['features'] = getFeatures(hyperParameterDict['fluidFeatures'].split(' '), currentState, priorStates, 'fluid', config, currentState['time'] - priorStates[-1]['time'] if priorStates is not None and len(priorStates) > 0 else 0.0, verbose = False, includeOther = 'boundary' in currentState and currentState['boundary'] is not None, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
     
     # print('boundary')
     if 'boundary' in currentState and currentState['boundary'] is not None:
-        currentState['boundary']['features'] = getFeatures(hyperParameterDict['boundaryFeatures'].split(' '), currentState, priorStates, 'boundary', config, currentState['time'] - priorStates[-1]['time'] if len(priorStates) > 0 else 0.0, verbose = False, includeOther = True, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
+        currentState['boundary']['features'] = getFeatures(hyperParameterDict['boundaryFeatures'].split(' '), currentState, priorStates, 'boundary', config, currentState['time'] - priorStates[-1]['time'] if priorStates is not None and len(priorStates) > 0 else 0.0, verbose = False, includeOther = True, historyLength=hyperParameterDict['historyLength'], normalizeRho=hyperParameterDict['normalizeDensity'])
     # print('gt')
     cState = currentState
     for state in trajectoryStates:

@@ -158,8 +158,8 @@ def loadFrame_testcaseI(inFile, fileName, key, fileData, fileIndex, fileOffset, 
                 # nextStates.append(nextState)            
 
 
-
-    return config, attributes, state, priorState, nextStates
+    
+    return config, attributes, state, [priorState], nextStates
 
 def loadGroup_testcaseII(inFile, inGrp, staticBoundaryData, fileName, key, fileData, fileIndex, fileOffset, dataset, hyperParameterDict, unrollLength = 8, device = 'cpu', dtype = torch.float32, additionalData = [], buildPriorState = True, buildNextState = True):
     if 'boundaryInformation' in inFile:

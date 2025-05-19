@@ -336,11 +336,11 @@ def getFeatures(featureNames, currentState, priorStates, which, config, dt, incl
         if verbose:
             print('Processing feature (main loop):', featureName)
         if historyLength == 0 or 'constant'in featureName:
-            feat = getFeaturev2(featureName, currentState, priorStates[0], which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+            feat = getFeaturev2(featureName, currentState, priorStates[0] if priorStates is not None else None, which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
         else:
             for h in range(historyLength + 1):
                 if h == 0:
-                    feat = getFeaturev2(featureName, currentState, priorStates[0], which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
+                    feat = getFeaturev2(featureName, currentState, priorStates[0] if priorStates is not None else None, which, config, dt, includeOther = includeOther, verbose = verbose, normalizeRho = normalizeRho)
                 else:
                     # print('Processing feature (history loop):', featureName)
                     # print('History:', h, '/', historyLength, ' - ', len(priorStates))
